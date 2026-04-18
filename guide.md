@@ -2,6 +2,17 @@
 
 Bu doküman, `tokenizer-workshop` projesine katkı verecek öğrenciler için hazırlanmıştır. Amaç; projeyi locale almak, `uv` ile çalıştırmak, kendi branch'inde geliştirme yapmak, değişiklikleri push etmek ve Pull Request (PR) açmak için ortak bir çalışma standardı oluşturmaktır.
 
+Bu repo için önerilen çalışma modeli şudur:
+
+- Ana repo, merkezi çalışma alanıdır.
+- Katkı verecek kişi repo'yu kendi hesabına **fork** eder.
+- Geliştirmeyi kendi fork'u üzerinde, kendi **feature branch**'inde yapar.
+- İşini tamamladıktan sonra ana repo'nun `main` branch'ine **PR** açar.
+
+Bu yaklaşım, hem profesyonel Git/GitHub akışını öğretir hem de ana repo'nun kontrollü kalmasını sağlar.
+
+---
+
 ## 1. Projeye katkı yaklaşımı
 
 Bu projede doğrudan `main` branch üzerinde geliştirme yapılmaz.
@@ -9,14 +20,16 @@ Her öğrenci kendi branch'inde çalışır ve işini tamamladıktan sonra `main
 
 Temel akış şöyledir:
 
-1. Repoyu locale al
-2. Projeyi ayağa kaldır
-3. Kendi branch'ini oluştur
-4. Geliştirmeyi yap
-5. Testleri çalıştır
-6. Commit al
-7. Remote'a push et
-8. Pull Request aç
+1. Repo'yu fork et
+2. Kendi fork'unu locale al
+3. Projeyi ayağa kaldır
+4. Ana repo'yu `upstream` olarak tanımla
+5. Kendi branch'ini oluştur
+6. Geliştirmeyi yap
+7. Testleri çalıştır
+8. Commit al
+9. Kendi fork'una push et
+10. Ana repo'ya Pull Request aç
 
 ---
 
@@ -40,27 +53,61 @@ Eğer sürüm dönüyorsa hazırdır.
 
 ---
 
-## 3. Repoyu locale alma
+## 3. Repo'yu locale alma
 
-### Senaryo A — Repo'ya doğrudan erişimin varsa
+### Önerilen yöntem — Fork ile çalışma
 
-```powershell
-git clone <REPO_URL>
-cd tokenizer-workshop
-```
-
-### Senaryo B — Repo'ya doğrudan yazma yetkin yoksa
-
-Bu durumda önce GitHub üzerinden repo'yu **fork** et, sonra kendi fork'unu clone et:
+Önce GitHub üzerinden ana repo'yu kendi hesabına **fork** et.
+Ardından kendi fork'unu clone et:
 
 ```powershell
 git clone <YOUR_FORK_URL>
 cd tokenizer-workshop
 ```
 
+Örnek yapı:
+
+- Ana repo: `https://github.com/Burakkylmz/tokenizer-workshop.git`
+- Senin fork'un: `https://github.com/<your-username>/tokenizer-workshop.git`
+
+### Alternatif yöntem — Doğrudan erişimin varsa
+
+Eğer repo'ya doğrudan yazma yetkin varsa, teorik olarak ana repo'yu doğrudan clone edebilirsin:
+
+```powershell
+git clone <REPO_URL>
+cd tokenizer-workshop
+```
+
+Ancak eğitim ve PR disiplini açısından önerilen yöntem yine de **fork + branch + PR** akışıdır.
+
 ---
 
-## 4. Projeyi locale ayağa kaldırma
+## 4. Ana repo'yu `upstream` olarak ekleme
+
+Fork ile çalışıyorsan clone sonrası `origin`, kendi fork'un olur.
+Bu durumda ana repo'yu ayrıca `upstream` olarak eklemelisin:
+
+```powershell
+git remote add upstream https://github.com/Burakkylmz/tokenizer-workshop.git
+```
+
+Kontrol etmek için:
+
+```powershell
+git remote -v
+```
+
+Beklenen mantık:
+
+- `origin` -> senin fork'un
+- `upstream` -> ana repo
+
+Bu ayar önemlidir çünkü ana repo güncellendikçe kendi fork'unu senkronize etmeni sağlar.
+
+---
+
+## 5. Projeyi locale ayağa kaldırma
 
 Repo klasörüne girdikten sonra önce bağımlılıkları senkronize et:
 
@@ -97,25 +144,36 @@ uv run pytest tests/test_char_tokenizer.py -v
 
 ---
 
-## 5. Güncel kodu alma
+## 6. Güncel kodu alma
 
-Çalışmaya başlamadan önce local `main` branch'ini güncelle:
+Çalışmaya başlamadan önce local `main` branch'ini güncelle.
+
+### Fork ile çalışıyorsan
+
+Önce ana repo'dan güncel kodu al:
+
+```powershell
+git fetch upstream
+git checkout main
+git merge upstream/main
+```
+
+Sonra istersen kendi fork'una da gönder:
+
+```powershell
+git push origin main
+```
+
+### Doğrudan ana repo ile çalışıyorsan
 
 ```powershell
 git checkout main
 git pull origin main
 ```
 
-Eğer fork ile çalışıyorsan ve ana repo `upstream` olarak tanımlıysa:
-
-```powershell
-git checkout main
-git pull upstream main
-```
-
 ---
 
-## 6. Kendi branch'ini açma
+## 7. Kendi branch'ini açma
 
 Her geliştirme ayrı branch'te yapılmalıdır.
 Branch isimleri açık ve kısa olmalıdır.
@@ -143,7 +201,7 @@ git checkout -b feature/word-tokenizer
 
 ---
 
-## 7. Geliştirme sırasında çalışma standardı
+## 8. Geliştirme sırasında çalışma standardı
 
 Katkı verirken şu prensiplere uy:
 
@@ -166,7 +224,7 @@ Kodunu push etmeden önce şunları kontrol et:
 
 ---
 
-## 8. Dosya değişikliklerini kontrol etme
+## 9. Dosya değişikliklerini kontrol etme
 
 Durumu görmek için:
 
@@ -182,7 +240,7 @@ git diff
 
 ---
 
-## 9. Commit alma
+## 10. Commit alma
 
 Önce dosyaları stage et:
 
@@ -215,9 +273,9 @@ Commit mesajı kısa, net ve fiil ile başlamalıdır.
 
 ---
 
-## 10. Remote'a push etme
+## 11. Kendi fork'una push etme
 
-İlk kez push ederken branch'i remote'a gönder:
+İlk kez push ederken branch'i kendi fork'una gönder:
 
 ```powershell
 git push -u origin feature/<your-work-name>
@@ -235,11 +293,25 @@ Sonraki push'larda daha kısa yazabilirsin:
 git push
 ```
 
+Buradaki önemli nokta şudur:
+
+- `origin` -> senin fork'un
+- push işlemi önce senin fork'una gider
+- ana repo'ya doğrudan push atılmaz
+
 ---
 
-## 11. Pull Request açma
+## 12. Pull Request açma
 
-Push işleminden sonra GitHub'a git ve ilgili branch için PR aç.
+Push işleminden sonra GitHub'a git ve kendi fork'undaki ilgili branch için PR aç.
+
+PR yönü şu şekilde olmalıdır:
+
+- **base repository:** ana repo (`Burakkylmz/tokenizer-workshop`)
+- **base branch:** `main`
+- **compare branch:** senin fork'undaki feature branch
+
+Yani PR, senin fork'undan ana repo'ya doğru açılır.
 
 ### PR açarken dikkat edilmesi gerekenler
 
@@ -266,7 +338,7 @@ This PR adds the first implementation of the tokenizer.
 - Verified local run with `uv run tokenizer-workshop`
 
 ## Notes
-- This PR focuses only on the initial version
+- This PR focuses only on the current scope
 - Follow-up improvements can be added separately
 ```
 
@@ -279,7 +351,7 @@ This PR adds the first implementation of the tokenizer.
 
 ---
 
-## 12. PR sonrası revizyon süreci
+## 13. PR sonrası revizyon süreci
 
 PR açıldıktan sonra yorum gelebilir. Bu durumda:
 
@@ -300,32 +372,35 @@ Aynı PR otomatik güncellenir. Yeni PR açman gerekmez.
 
 ---
 
-## 13. Fork ile çalışanlar için ek not
+## 14. Contributors görünürlüğü hakkında kısa not
 
-Eğer fork üzerinden çalışıyorsan, ana repo güncellendikçe kendi fork'un geride kalabilir.
-Bu durumda ana repodan güncel kodu almak için önce `upstream` tanımlanır:
+Bir katkının GitHub üzerinde ana repo'nun katkıları içinde görünmesi için en kritik nokta şudur:
 
-```powershell
-git remote add upstream <MAIN_REPO_URL>
-```
+- katkıların ana repo'nun `main` gibi default branch'ine merge edilmiş olması gerekir
 
-Sonra:
+Sadece fork açmak veya sadece kendi fork'unda commit atmak yeterli değildir.
 
-```powershell
-git fetch upstream
-git checkout main
-git merge upstream/main
-```
+Ayrıca commit author bilgisinin doğru görünmesi için local Git ayarlarında kullanılan `user.name` ve `user.email` değerleri de doğru olmalıdır.
 
-İstersen sonra kendi fork'una da gönder:
+Kontrol için:
 
 ```powershell
-git push origin main
+git config user.name
+git config user.email
 ```
+
+Gerekirse düzeltmek için:
+
+```powershell
+git config user.name "YourGitHubUsername"
+git config user.email "your-email@example.com"
+```
+
+Bu bölümde görünürlük bazen anlık olmayabilir; merge sonrası GitHub arayüzünde kısa bir gecikme olabilir.
 
 ---
 
-## 14. Sık kullanılan komutlar
+## 15. Sık kullanılan komutlar
 
 ### Projeyi çalıştır
 
@@ -372,7 +447,7 @@ git push -u origin feature/<your-work-name>
 
 ---
 
-## 15. Katkı verirken kaçınılması gereken hatalar
+## 16. Katkı verirken kaçınılması gereken hatalar
 
 - `main` branch üzerinde çalışmak
 - Test çalıştırmadan push etmek
@@ -381,10 +456,11 @@ git push -u origin feature/<your-work-name>
 - Gereksiz refactor yapmak
 - İsimlendirme ve klasör yapısını bozmak
 - Çalışmayan kodu “taslak” diye main'e taşımaya çalışmak
+- Yalnızca fork'a push edip PR açmayı unutmak
 
 ---
 
-## 16. Beklenen minimum katkı kalitesi
+## 17. Beklenen minimum katkı kalitesi
 
 Bir katkının kabul edilebilir olması için minimum beklenti:
 
@@ -396,7 +472,7 @@ Bir katkının kabul edilebilir olması için minimum beklenti:
 
 ---
 
-## 17. Son öneri
+## 18. Son öneri
 
 Bu projede amaç sadece kod yazmak değil, yazılan şeyi açıklayabilmek.
 Bu yüzden katkı verirken şu soruya net cevap verebilmelisin:
