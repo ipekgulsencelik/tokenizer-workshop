@@ -2,52 +2,52 @@
 
 ## 1. Purpose
 
-`CharTokenizer`, metni **karakter seviyesinde** tokenize eden en temel tokenizer türüdür.
+`CharTokenizer` is the most basic tokenizer type that tokenizes text at the **character level**.
 
-Bu tokenizer’ın projedeki amacı, tokenization kavramını en çıplak ve en anlaşılır haliyle göstermektir.  
-Burada her benzersiz karakter bir token olarak kabul edilir.
+The purpose of this tokenizer in the project is to present the concept of tokenization in its most raw and understandable form.
+Here, each unique character is treated as a token.
 
-Örnek:
+Example:
 
-```text
+```text id="3x6w9v"
 "merhaba" -> ["m", "e", "r", "h", "a", "b", "a"]
-````
+```
 
-Bu yaklaşım özellikle eğitim açısından çok değerlidir çünkü öğrenci önce şu temel sorulara net cevap verebilir:
+This approach is especially valuable for learning because it allows the learner to clearly answer the following fundamental questions:
 
-* token nedir?
-* vocabulary nasıl oluşur?
-* encode ne yapar?
-* decode ne yapar?
-* neden bir mapping tablosuna ihtiyaç vardır?
+* what is a token?
+* how is a vocabulary formed?
+* what does encode do?
+* what does decode do?
+* why is a mapping table needed?
 
 ---
 
 ## 2. Why This Tokenizer Exists
 
-Bu tokenizer gerçek dünya performansı için değil, **öğretim ve kavramsal netlik** için vardır.
+This tokenizer does not exist for real-world performance, but for **teaching and conceptual clarity**.
 
-Projede `CharTokenizer` şu rolü oynar:
+In the project, `CharTokenizer` plays the following role:
 
-* tokenization’ın başlangıç noktasıdır
-* daha gelişmiş tokenizer’ları anlamak için referans davranış sağlar
-* `ByteTokenizer` ve `SimpleBPETokenizer` ile karşılaştırma zemini oluşturur
+* it is the starting point of tokenization
+* it provides a reference behavior to understand more advanced tokenizers
+* it creates a comparison foundation with `ByteTokenizer` and `SimpleBPETokenizer`
 
-Başka bir deyişle, bu sınıf olmadan öğrencinin daha ileri tokenizer’ları değerlendirmesi zorlaşır.
-Çünkü önce “en basit hal” görülmeden “neden daha karmaşık yöntemlere ihtiyaç duyulduğu” tam anlaşılmaz.
+In other words, without this class, it becomes difficult for the learner to evaluate more advanced tokenizers.
+Because without seeing the “simplest form” first, it is hard to understand why more complex methods are needed.
 
 ---
 
 ## 3. Core Idea
 
-Bu tokenizer’ın mantığı çok basittir:
+The logic of this tokenizer is very simple:
 
-1. Eğitim verisindeki tüm benzersiz karakterleri topla
-2. Her karaktere bir integer kimlik ver
-3. Metni bu kimliklere çevir
-4. Gerekirse tekrar metne dönüştür
+1. collect all unique characters from the training data
+2. assign an integer ID to each character
+3. convert text into these IDs
+4. convert back to text when needed
 
-Örnek:
+Example:
 
 ```text
 text = "aba"
@@ -60,141 +60,145 @@ encode("aba") -> [0, 1, 0]
 decode([0, 1, 0]) -> "aba"
 ```
 
-Burada iki şey çok önemlidir:
+Two things are very important here:
 
 * `stoi`: string to integer
 * `itos`: integer to string
 
-Tokenizer sadece parçalamaz; gerektiğinde geri çevirebilmelidir.
+A tokenizer does not only split; it must also be able to reconstruct.
 
 ---
 
 ## 4. Training Logic
 
-`CharTokenizer` için “training” kavramı klasik makine öğrenmesi eğitimi değildir.
-Buradaki training, metinden vocabulary çıkarmaktır.
+For `CharTokenizer`, “training” is not classical machine learning training.
+Here, training means extracting the vocabulary from the text.
 
-Kodda bu iş şu mantıkla yapılır:
+In the code, this is done with the following logic:
 
-```python
+```python id="d8x7zb"
 unique_chars = sorted(set(text))
 ```
 
-Bu satır iki önemli karar içerir:
+This line contains two important decisions:
 
 ### a) `set(text)`
 
-Metindeki benzersiz karakterleri toplar.
+Collects unique characters in the text.
 
 ### b) `sorted(...)`
 
-Karakterleri deterministik sıraya koyar.
+Orders characters deterministically.
 
-Bu neden önemli?
+Why is this important?
 
-Çünkü tokenizer çıktısının tekrar üretilebilir olması gerekir.
-Aynı metni iki kez eğittiğinde aynı karakter aynı id’yi almalıdır.
+Because tokenizer outputs must be reproducible.
+When training on the same text multiple times, the same character must receive the same ID.
 
-Eğer `sorted` kullanılmazsa, mapping sırası bazı durumlarda öngörülemez hale gelebilir ve eğitim çıktısı kararsız olabilir.
+Without `sorted`, the mapping order may become unpredictable in some cases, leading to unstable results.
 
 ---
 
 ## 5. Encode Logic
 
-`encode()` metodu, verilen metindeki her karakteri integer token id’ye çevirir.
+The `encode()` method converts each character in the text into an integer token ID.
 
-Örnek:
+Example:
 
-```text
+```text id="4r8y0x"
 "merhaba" -> [id_m, id_e, id_r, id_h, id_a, id_b, id_a]
 ```
 
-Bu aşamada önemli bir tasarım kararı alınmıştır:
+An important design decision is made here:
 
-Eğer tokenizer eğitim sırasında görmediği bir karakter ile karşılaşırsa, **sessizce geçmez** ve **uydurma çözüm üretmez**.
-Doğrudan hata verir.
+If the tokenizer encounters a character that it has not seen during training, it does **not silently skip it** and does **not create a fake solution**.
+It directly raises an error.
 
-Bu karar eğitim açısından doğrudur çünkü şu problemi görünür kılar:
+This is correct for learning purposes because it makes the following problem visible:
 
-> Bir tokenizer, kapsamadığı karakterlerle karşılaştığında ne yapmalıdır?
+> What should a tokenizer do when it encounters characters it does not cover?
 
-Bu problem gerçek dünyada `unknown token`, `fallback`, `byte fallback` gibi yöntemlerle çözülür.
-Ama burada amaç önce problemi çıplak biçimde göstermektir.
+In real-world systems, this problem is solved using methods like `unknown token`, `fallback`, or `byte fallback`.
+But here, the goal is to expose the problem clearly first.
 
 ---
 
 ## 6. Decode Logic
 
-`decode()` metodu integer token listesini tekrar metne çevirir.
+The `decode()` method converts a list of integer tokens back into text.
 
-Bu aşamada `_itos` mapping kullanılır:
+This uses the `_itos` mapping:
 
-```text
+```text id="m5o2vz"
 [0, 1, 0] -> "aba"
 ```
 
-Burada dikkat edilmesi gereken nokta şu:
+The key point here is:
 
-Decode işlemi, tokenizer’ın gerçekten iki yönlü çalıştığını gösterir.
-Birçok öğrenci encode tarafını anlar ama decode tarafının neden gerekli olduğunu gözden kaçırır.
+Decoding demonstrates that the tokenizer works bidirectionally.
+Many learners understand encoding but overlook why decoding is necessary.
 
-Oysa tokenizer’ın davranışını incelemek, debug etmek ve doğrulamak için decode çok önemlidir.
+However, decoding is essential for:
+
+* inspecting tokenizer behavior
+* debugging
+* validating correctness
 
 ---
 
 ## 7. Vocabulary Behavior
 
-`CharTokenizer` için vocabulary boyutu şudur:
+For `CharTokenizer`, the vocabulary size is:
 
-> Eğitim verisindeki benzersiz karakter sayısı
+> the number of unique characters in the training data
 
-Bu şu anlama gelir:
+This means:
 
-* vocabulary veri bağımlıdır
-* farklı corpus farklı vocab üretir
-* küçük metin küçük vocab üretir
-* yeni karakterler yeni eğitim ihtiyacı doğurur
+* vocabulary is data-dependent
+* different corpora produce different vocabularies
+* small text → small vocab
+* new characters → require retraining
 
-Bu davranış eğitim açısından öğreticidir çünkü öğrenciler tokenizer tasarımında “vocab sabit mi, öğrenilmiş mi?” sorusunu sormaya başlar.
+This behavior is educationally valuable because it encourages learners to ask:
+
+> Is the vocabulary fixed or learned?
 
 ---
 
 ## 8. Strengths
 
-`CharTokenizer`’ın güçlü yönleri:
+The strengths of `CharTokenizer`:
 
-* kavramsal olarak çok nettir
-* implementasyonu basittir
-* encode/decode mantığını öğretir
-* vocabulary oluşturmayı görünür kılar
-* debugging kolaydır
-* eğitim için çok uygundur
+* conceptually very clear
+* simple implementation
+* teaches encode/decode logic
+* makes vocabulary creation visible
+* easy to debug
+* ideal for learning
 
-Bu yüzden projede ilk tokenizer olarak çok doğru bir seçimdir.
+This makes it a very appropriate first tokenizer in the project.
 
 ---
 
 ## 9. Limitations
 
-Bu tokenizer’ın ciddi sınırları vardır:
+This tokenizer has serious limitations:
 
-### a) Sequence length çok uzayabilir
+### a) Sequence length can grow significantly
 
-Her karakter ayrı token olduğu için metin çok uzun token dizilerine dönüşebilir.
+Each character becomes a token.
 
-### b) Yapısal tekrarları kullanmaz
+### b) Does not capture structural repetition
 
-Örneğin `"token"` kelimesini veya `"ing"` gibi sık parçaları özel olarak öğrenmez.
+It does not learn patterns like words or common substrings.
 
-### c) Görülmeyen karakterlerde kırılır
+### c) Breaks on unseen characters
 
-Yeni karakter gelirse encode edemez.
+Cannot encode new characters without retraining.
 
-### d) Gerçek dünya verimliliği düşüktür
+### d) Inefficient for real-world usage
 
-Modern LLM sistemlerinde genellikle daha gelişmiş tokenizer’lar tercih edilir.
-
-Yani bu tokenizer öğretici olarak güçlü, pratik verimlilik açısından sınırlıdır.
+Modern LLM systems use more advanced tokenizers.
 
 ---
 
@@ -202,75 +206,72 @@ Yani bu tokenizer öğretici olarak güçlü, pratik verimlilik açısından sı
 
 ### CharTokenizer vs ByteTokenizer
 
-* `CharTokenizer` karakterleri temel alır
-* `ByteTokenizer` UTF-8 byte’larını temel alır
+* CharTokenizer is character-based
+* ByteTokenizer is UTF-8 byte-based
 
-`ByteTokenizer` daha kapsayıcıdır çünkü her UTF-8 metni temsil edebilir.
-Ama `CharTokenizer` kavramsal olarak daha kolay anlaşılır.
+CharTokenizer is more intuitive.
+ByteTokenizer is more inclusive.
 
 ### CharTokenizer vs SimpleBPETokenizer
 
-* `CharTokenizer` hiçbir şeyi birleştirmez
-* `SimpleBPETokenizer` sık görülen parçaları birleştirir
+* CharTokenizer does not merge anything
+* SimpleBPETokenizer merges frequent patterns
 
-Bu nedenle `SimpleBPETokenizer` bazı metinlerde daha kısa token dizileri üretebilir.
+So BPE can produce shorter token sequences in many cases.
 
 ---
 
 ## 11. Design Decisions in This Project
 
-Bu projede `CharTokenizer` için alınan önemli kararlar şunlardır:
+Key design decisions for `CharTokenizer`:
 
-* vocabulary metinden öğrenilir
-* karakter sırası deterministik olacak şekilde kurulur
-* eğitim yapılmadan encode/decode çalışmaz
-* bilinmeyen karakterlerde hata verilir
-* öğreticilik, performanstan daha önceliklidir
-
-Bu kararlar production değil, eğitim amacıyla bilinçli şekilde seçilmiştir.
+* vocabulary is learned from text
+* character order is deterministic
+* encode/decode does not work before training
+* unknown characters raise errors
+* educational clarity is prioritized over performance
 
 ---
 
 ## 12. Testing Perspective
 
-Bu tokenizer için testlerde doğrulanan temel davranışlar şunlardır:
+Tests validate:
 
-* training sonrası vocab oluşması
-* encode çıktısının integer listesi olması
-* decode sonrası orijinal metnin geri elde edilmesi
-* train edilmeden kullanımın hata vermesi
-* bilinmeyen karakterlerde hata verilmesi
-* aynı input için aynı vocab’ın oluşması
+* vocabulary is created after training
+* encode output is an integer list
+* decode reconstructs original text
+* using before training raises an error
+* unknown characters raise errors
+* same input produces same vocabulary
 
-Bu testler sadece correctness değil, aynı zamanda tasarım sözleşmesini de korur.
+These tests validate both correctness and design contracts.
 
 ---
 
 ## 13. When to Use
 
-`CharTokenizer` şu durumlarda anlamlıdır:
+Useful when:
 
-* tokenization öğretmek istediğinde
-* temel tokenizer mantığını göstermek istediğinde
-* küçük ve şeffaf deneyler yapmak istediğinde
-* encode/decode mapping yapısını açıklamak istediğinde
+* teaching tokenization
+* demonstrating basic tokenizer logic
+* running simple and transparent experiments
+* explaining encode/decode mapping
 
-Ama şu durumlarda genellikle yeterli değildir:
+Not sufficient for:
 
-* büyük ölçekli NLP sistemleri
-* verimli sequence temsil ihtiyacı
-* çok dilli ve karmaşık veri
-* modern LLM pipeline’ları
+* large-scale NLP systems
+* efficient sequence representation
+* multilingual complex data
+* modern LLM pipelines
 
 ---
 
 ## 14. Final Takeaway
 
-`CharTokenizer`, bu projedeki en basit tokenizer olmasına rağmen en önemsiz tokenizer değildir.
-Tam tersine, diğer bütün tokenizer’ları anlamak için gerekli temel kavramsal çerçeveyi sağlar.
+`CharTokenizer` is the simplest tokenizer in the project, but not the least important.
+On the contrary, it provides the fundamental conceptual framework needed to understand all other tokenizers.
 
-Bu sınıfın asıl değeri şudur:
+Its main value is:
 
-> Tokenization’ın özü, önce en sade haliyle burada görünür hale gelir.
-
+> The essence of tokenization becomes clearly visible in its simplest form here.
 
