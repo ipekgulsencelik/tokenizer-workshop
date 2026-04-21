@@ -1,63 +1,75 @@
 # tokenizer-workshop
 
 ## Project Overview
-`tokenizer-workshop`, tokenization kavramını uygulamalı ve eğitim odaklı biçimde öğretmek için geliştirilen bir Python projesidir.
 
-Bu projenin temel amacı, farklı tokenizer yaklaşımlarını adım adım inşa ederek şu temel soruya güçlü bir cevap vermektir:
+`tokenizer-workshop` is a Python project developed to teach the concept of tokenization in a practical and education-focused manner.
 
-**Bir metin, makine tarafından anlamlı parçalara nasıl ayrılır ve bu ayrım neden önemlidir?**
+The main goal of this project is to provide a strong answer to the following fundamental question by building different tokenizer approaches step by step:
 
-Bu repo, mevcut tokenizer kütüphanelerini sadece kullanmayı değil, onların altında yatan mantığı kavramayı hedefler.
+**How is a piece of text split into meaningful parts by a machine, and why is this split important?**
+
+This repository aims not only to use existing tokenizer libraries, but also to understand the logic underlying them.
 
 ## Problem Definition
-### Problem
-Tokenization, NLP ve LLM sistemlerinin en temel katmanlarından biridir; ancak çoğu eğitimde ya yüzeysel anlatılır ya da hazır kütüphaneler üzerinden black-box biçimde geçilir.
 
-Bunun sonucu olarak öğrenciler genellikle:
-- token nedir sorusuna eksik cevap verir,
-- character-level, byte-level ve subword yaklaşımları ayırt etmekte zorlanır,
-- BPE gibi yöntemlerin neden ortaya çıktığını tam anlayamaz,
-- aynı metnin neden farklı tokenizer’larda farklı token sayısı ürettiğini açıklayamaz.
+### Problem
+
+Tokenization is one of the most fundamental layers of NLP and LLM systems; however, in most trainings it is either explained superficially or passed over in a black-box manner through ready-made libraries.
+
+As a result, learners generally:
+
+* give incomplete answers to the question of what a token is,
+* have difficulty distinguishing between character-level, byte-level, and subword approaches,
+* cannot fully understand why methods like BPE emerged,
+* cannot explain why the same text produces different token counts across different tokenizers.
 
 ### Why this problem matters
-LLM, fine-tuning, embedding, context window, maliyet ve latency gibi birçok kritik konu doğrudan tokenization ile ilişkilidir. Tokenization mantığını bilmeden LLM sistem tasarımı hakkında derin bir anlayış geliştirmek zordur.
+
+Many critical topics such as LLMs, fine-tuning, embeddings, context window, cost, and latency are directly related to tokenization. Without understanding tokenization logic, it is difficult to develop a deep understanding of LLM system design.
 
 ### Target user / use case
-Bu proje şu kullanıcılar için uygundur:
-- AI / NLP öğrenen geliştiriciler
-- LLM sistemlerini daha derin anlamak isteyen mühendisler
-- teknik eğitim veren eğitmenler
-- tokenizer kavramını kod yazarak öğrenmek isteyen öğrenciler
+
+This project is suitable for the following users:
+
+* developers learning AI / NLP
+* engineers who want to understand LLM systems more deeply
+* instructors who provide technical training
+* students who want to learn tokenization by writing code
 
 ## Solution Approach
-Bu proje, tokenization kavramını tek bir sınıf üzerinden değil; karşılaştırmalı ve aşamalı biçimde öğretir.
 
-Projede temel olarak şu yaklaşımlar ele alınır:
-- `CharTokenizer`
-- `ByteTokenizer`
-- `SimpleBPETokenizer`
+This project teaches the concept of tokenization not through a single class, but in a comparative and incremental manner.
 
-Bu sayede öğrenci şu ilerleyişi net görür:
-- karakter düzeyi temsil
-- byte düzeyi temsil
-- subword / merge tabanlı temsil
+The following approaches are mainly covered in the project:
+
+* `CharTokenizer`
+* `ByteTokenizer`
+* `SimpleBPETokenizer`
+
+In this way, the learner can clearly see the following progression:
+
+* character-level representation
+* byte-level representation
+* subword / merge-based representation
 
 ### Architecture summary
-Proje, temiz bir `src/` yapısı altında geliştirilen Python paketinden oluşur. Uygulama ayarları `config.yaml` içinde, proje metadata ve dependency bilgileri ise `pyproject.toml` içinde tutulur. Geliştirme akışı `uv` ile yönetilir. Secret değerler repoya yazılmaz; gerektiğinde environment variable üzerinden okunur. Amaç, production-grade performans kovalamaktan çok okunabilir, test edilebilir ve eğitimde anlatılabilir bir tokenizer laboratuvarı oluşturmaktır.
+
+The project consists of a Python package developed under a clean `src/` structure. Application settings are stored in `config.yaml`, while project metadata and dependency information are stored in `pyproject.toml`. The development workflow is managed with `uv`. Secret values are not written into the repository; when necessary, they are read via environment variables. The goal is not to chase production-grade performance, but to create a tokenizer laboratory that is readable, testable, and suitable for teaching.
 
 ## Tech Stack
 
-| Component                | Choice                | Notes                               |
-| ------------------------ | --------------------- | ----------------------------------- |
-| Language                 | Python                | Python 3.10+                        |
-| Environment & workflow   | uv                    | Dependency ve environment yönetimi  |
-| Project metadata         | pyproject.toml        | Paket ve dependency merkezi         |
-| App config               | YAML                  | `config.yaml` ile uygulama ayarları |
-| Tokenizer implementation | Custom                | Eğitim odaklı özgün implementasyon  |
-| UI / Interface           | CLI / script          | Sade kullanım                       |
-| Evaluation               | Simple custom metrics | token count, vocab size, comparison |
+| Component                | Choice                | Notes                                     |
+| ------------------------ | --------------------- | ----------------------------------------- |
+| Language                 | Python                | Python 3.10+                              |
+| Environment & workflow   | uv                    | Dependency and environment management     |
+| Project metadata         | pyproject.toml        | Central package and dependency management |
+| App config               | YAML                  | Application settings via `config.yaml`    |
+| Tokenizer implementation | Custom                | Education-focused custom implementation   |
+| UI / Interface           | CLI / script          | Simple usage                              |
+| Evaluation               | Simple custom metrics | token count, vocab size, comparison       |
 
 ## Project Structure
+
 ```text
 src/
 └── tokenizer_workshop/
@@ -74,86 +86,103 @@ pyproject.toml
 ```
 
 ### Folder descriptions
-- `src/tokenizer_workshop/`: Ana uygulama kodu
-- `tests/`: Test dosyaları
-- `data/`: Örnek metinler ve küçük demo input’ları
+
+* `src/tokenizer_workshop/`: Main application code
+* `tests/`: Test files
+* `data/`: Sample texts and small demo inputs
 
 ## Setup
+
 ### Requirements
-- Python version: **3.10+**
-- Required tool: **uv**
-- Optional secret: **GROQ_API_KEY**
+
+* Python version: **3.10+**
+* Required tool: **uv**
+* Optional secret: **GROQ_API_KEY**
 
 ### Installation
+
 ```bash
 uv sync
 ```
 
 ### Environment Variables
-Gerektiğinde sistem environment üzerinden aşağıdaki değer tanımlanabilir:
+
+If needed, the following value can be defined via system environment variables:
 
 ```env
 GROQ_API_KEY=
 ```
 
-Not: API key değerleri repoya yazılmamalıdır.
+Note: API key values must not be written into the repository.
 
 ## Run Instructions
-Proje entry point’ini çalıştırmak için:
+
+To run the project entry point:
 
 ```bash
 uv run tokenizer-workshop
 ```
 
-Testleri çalıştırmak için:
+To run the tests:
 
 ```bash
 uv run pytest -v
 ```
 
 ## Example Input / Output
+
 ### Example input
+
 ```text
 Merhaba dünya!
 ```
 
 ### Example output
+
 ```text
-CharTokenizer -> character-level tokens
-ByteTokenizer -> UTF-8 byte ids
-SimpleBPETokenizer -> learned subword tokens
+CharTokenizer -> character-level tokens  
+ByteTokenizer -> UTF-8 byte ids  
+SimpleBPETokenizer -> learned subword tokens  
 ```
 
 ## Key Features
-- Eğitim odaklı tokenizer tasarımı
-- Karşılaştırmalı öğrenme yaklaşımı
-- Character, byte ve BPE düzeylerini bir arada gösterme
-- Test destekli geliştirme akışı
-- Basit ama öğretici metrikler
+
+* Education-focused tokenizer design
+* Comparative learning approach
+* Showing character, byte, and BPE levels together
+* Test-driven development workflow
+* Simple but instructive metrics
 
 ## Limitations
-Bu proje aşağıdaki sınırlılıklara sahiptir:
-- production-grade tokenizer performansı hedeflemez
-- büyük ölçekli veri ve optimizasyon problemi çözmez
-- tüm gerçek dünya tokenizer davranışlarını birebir taklit etmeyi amaçlamaz
+
+This project has the following limitations:
+
+* does not aim for production-grade tokenizer performance
+* does not solve large-scale data and optimization problems
+* does not aim to perfectly replicate all real-world tokenizer behaviors
 
 ## Future Improvements
-İleride aşağıdaki geliştirmeler yapılabilir:
-- `WordTokenizer` eklenmesi
-- `RegexTokenizer` eklenmesi
-- `RegexBPETokenizer` eklenmesi
-- `ByteBPETokenizer` eklenmesi
-- merge trace / görselleştirme modülü
-- notebook tabanlı eğitim materyalleri
+
+The following improvements can be made in the future:
+
+* adding `WordTokenizer`
+* adding `RegexTokenizer`
+* adding `RegexBPETokenizer`
+* adding `ByteBPETokenizer`
+* merge trace / visualization module
+* notebook-based training materials
 
 ## Project Status
+
 **Status:** in progress
 
 ## Repository Workflow
-- Geliştirme kontrollü ve adım adım ilerletilir.
-- Büyük toplu değişikliklerden kaçınılır.
 
+* Development progresses in a controlled and step-by-step manner.
+* Large bulk changes are avoided.
 
 ## Author
-- Name: Burak
-- Project Topic: Educational tokenizer workshop for learning tokenization step by step
+
+* Name: Burak
+* Project Topic: Educational tokenizer workshop for learning tokenization step by step
+
