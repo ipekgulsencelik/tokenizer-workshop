@@ -1,142 +1,143 @@
 # Guide
 
-Bu doküman, `tokenizer-workshop` projesine katkı verecek öğrenciler için hazırlanmıştır. Amaç; projeyi locale almak, `uv` ile çalıştırmak, kendi branch'inde geliştirme yapmak, değişiklikleri push etmek ve Pull Request (PR) açmak için ortak bir çalışma standardı oluşturmaktır.
+This document is prepared for students who will contribute to the `tokenizer-workshop` project. The goal is to establish a common working standard for cloning the project locally, running it with `uv`, developing on a personal branch, pushing changes, and opening a Pull Request (PR).
 
-Bu repo için önerilen çalışma modeli şudur:
+The recommended working model for this repository is as follows:
 
-- Ana repo, merkezi çalışma alanıdır.
-- Katkı verecek kişi repo'yu kendi hesabına **fork** eder.
-- Geliştirmeyi kendi fork'u üzerinde, kendi **feature branch**'inde yapar.
-- İşini tamamladıktan sonra ana repo'nun `main` branch'ine **PR** açar.
+* The main repository is the central workspace.
+* The contributor **forks** the repository to their own account.
+* Development is done on the contributor’s own fork, in their own **feature branch**.
+* After completing the work, a **PR** is opened to the `main` branch of the main repository.
 
-Bu yaklaşım, hem profesyonel Git/GitHub akışını öğretir hem de ana repo'nun kontrollü kalmasını sağlar.
-
----
-
-## 1. Projeye katkı yaklaşımı
-
-Bu projede doğrudan `main` branch üzerinde geliştirme yapılmaz.
-Her öğrenci kendi branch'inde çalışır ve işini tamamladıktan sonra `main` branch'e Pull Request açar.
-
-Temel akış şöyledir:
-
-1. Repo'yu fork et
-2. Kendi fork'unu locale al
-3. Projeyi ayağa kaldır
-4. Ana repo'yu `upstream` olarak tanımla
-5. Kendi branch'ini oluştur
-6. Geliştirmeyi yap
-7. Testleri çalıştır
-8. Commit al
-9. Kendi fork'una push et
-10. Ana repo'ya Pull Request aç
+This approach both teaches a professional Git/GitHub workflow and keeps the main repository controlled.
 
 ---
 
-## 2. Gereksinimler
+## 1. Contribution approach
 
-Bu projede temel araçlar şunlardır:
+In this project, development is not done directly on the `main` branch.
+Each student works on their own branch and opens a Pull Request to the `main` branch after completing their work.
 
-- Git
-- Python 3.10+
-- `uv`
+The basic flow is:
 
-### `uv` kontrolü
+1. Fork the repository
+2. Clone your fork locally
+3. Set up the project
+4. Define the main repository as `upstream`
+5. Create your branch
+6. Do the development
+7. Run the tests
+8. Commit your changes
+9. Push to your fork
+10. Open a Pull Request to the main repository
 
-PowerShell'de:
+---
+
+## 2. Requirements
+
+The main tools used in this project are:
+
+* Git
+* Python 3.10+
+* `uv`
+
+### Checking `uv`
+
+In PowerShell:
 
 ```powershell
 uv --version
 ```
 
-Eğer sürüm dönüyorsa hazırdır.
+If it returns a version, it is ready.
 
 ---
 
-## 3. Repo'yu locale alma
+## 3. Cloning the repository locally
 
-### Önerilen yöntem — Fork ile çalışma
+### Recommended method — Working with a fork
 
-Önce GitHub üzerinden ana repo'yu kendi hesabına **fork** et.
-Ardından kendi fork'unu clone et:
+First, **fork** the main repository to your own account via GitHub.
+Then clone your fork:
 
 ```powershell
 git clone <YOUR_FORK_URL>
 cd tokenizer-workshop
 ```
 
-Örnek yapı:
+Example structure:
 
-- Ana repo: `https://github.com/Burakkylmz/tokenizer-workshop.git`
-- Senin fork'un: `https://github.com/<your-username>/tokenizer-workshop.git`
+* Main repo: `https://github.com/Burakkylmz/tokenizer-workshop.git`
+* Your fork: `https://github.com/<your-username>/tokenizer-workshop.git`
 
-### Alternatif yöntem — Doğrudan erişimin varsa
+### Alternative method — If you have direct access
 
-Eğer repo'ya doğrudan yazma yetkin varsa, teorik olarak ana repo'yu doğrudan clone edebilirsin:
+If you have direct write access to the repository, you can theoretically clone the main repo directly:
 
 ```powershell
 git clone <REPO_URL>
 cd tokenizer-workshop
 ```
 
-Ancak eğitim ve PR disiplini açısından önerilen yöntem yine de **fork + branch + PR** akışıdır.
+However, for training and PR discipline, the recommended approach is still **fork + branch + PR** workflow.
 
 ---
 
-## 4. Ana repo'yu `upstream` olarak ekleme
+## 4. Adding the main repository as `upstream`
 
-Fork ile çalışıyorsan clone sonrası `origin`, kendi fork'un olur.
-Bu durumda ana repo'yu ayrıca `upstream` olarak eklemelisin:
+If you are working with a fork, after cloning, `origin` points to your fork.
+In this case, you should add the main repository as `upstream`:
 
 ```powershell
 git remote add upstream https://github.com/Burakkylmz/tokenizer-workshop.git
 ```
 
-Kontrol etmek için:
+To verify:
 
 ```powershell
 git remote -v
 ```
 
-Beklenen mantık:
+Expected logic:
 
-- `origin` -> senin fork'un
-- `upstream` -> ana repo
+* `origin` -> your fork
+* `upstream` -> main repository
 
-Bu ayar önemlidir çünkü ana repo güncellendikçe kendi fork'unu senkronize etmeni sağlar.
+This setup is important because it allows you to synchronize your fork as the main repository updates.
 
 ---
 
-## 5. Projeyi locale ayağa kaldırma
+## 5. Setting up the project locally
 
-Repo klasörüne girdikten sonra önce bağımlılıkları senkronize et:
+After entering the repository directory, first synchronize dependencies:
 
 ```powershell
 uv sync
 ```
 
-Bu komut:
-- `.venv` oluşturur (yoksa)
-- `pyproject.toml` ve `uv.lock` dosyasına göre bağımlılıkları kurar
-- proje ortamını hazır hale getirir
+This command:
 
-Ardından proje girişini çalıştır:
+* creates `.venv` (if it does not exist)
+* installs dependencies according to `pyproject.toml` and `uv.lock`
+* prepares the project environment
+
+Then run the project entry point:
 
 ```powershell
 uv run tokenizer-workshop
 ```
 
-Bu komut başarılı çalışıyorsa proje temel seviyede ayağa kalkmış demektir.
+If this command runs successfully, the project is up and running at a basic level.
 
-### Testleri çalıştırma
+### Running tests
 
-Tüm testleri çalıştırmak için:
+To run all tests:
 
 ```powershell
 uv run pytest -v
 ```
 
-Belirli bir test dosyasını çalıştırmak için:
+To run a specific test file:
 
 ```powershell
 uv run pytest tests/test_char_tokenizer.py -v
@@ -144,13 +145,13 @@ uv run pytest tests/test_char_tokenizer.py -v
 
 ---
 
-## 6. Güncel kodu alma
+## 6. Pulling the latest code
 
-Çalışmaya başlamadan önce local `main` branch'ini güncelle.
+Before starting work, update your local `main` branch.
 
-### Fork ile çalışıyorsan
+### If working with a fork
 
-Önce ana repo'dan güncel kodu al:
+First fetch the latest code from the main repository:
 
 ```powershell
 git fetch upstream
@@ -158,13 +159,13 @@ git checkout main
 git merge upstream/main
 ```
 
-Sonra istersen kendi fork'una da gönder:
+Then optionally push it to your fork:
 
 ```powershell
 git push origin main
 ```
 
-### Doğrudan ana repo ile çalışıyorsan
+### If working directly with the main repository
 
 ```powershell
 git checkout main
@@ -173,27 +174,27 @@ git pull origin main
 
 ---
 
-## 7. Kendi branch'ini açma
+## 7. Creating your branch
 
-Her geliştirme ayrı branch'te yapılmalıdır.
-Branch isimleri açık ve kısa olmalıdır.
+Each development should be done in a separate branch.
+Branch names should be clear and concise.
 
-Örnek branch isimleri:
+Example branch names:
 
-- `feature/word-tokenizer`
-- `feature/regex-tokenizer`
-- `feature/regex-bpe-tokenizer`
-- `feature/byte-bpe-tokenizer`
-- `test/metrics-improvements`
-- `docs/contribution-guide`
+* `feature/word-tokenizer`
+* `feature/regex-tokenizer`
+* `feature/regex-bpe-tokenizer`
+* `feature/byte-bpe-tokenizer`
+* `test/metrics-improvements`
+* `docs/contribution-guide`
 
-Branch oluşturmak ve geçmek için:
+To create and switch to a branch:
 
 ```powershell
 git checkout -b feature/<your-work-name>
 ```
 
-Örnek:
+Example:
 
 ```powershell
 git checkout -b feature/word-tokenizer
@@ -201,38 +202,38 @@ git checkout -b feature/word-tokenizer
 
 ---
 
-## 8. Geliştirme sırasında çalışma standardı
+## 8. Development workflow standards
 
-Katkı verirken şu prensiplere uy:
+When contributing, follow these principles:
 
-- Küçük ve kontrollü değişiklik yap
-- Gereksiz dosya ekleme
-- Kod ile birlikte test ekle
-- Yorum satırları eğitim değerini artırıyorsa ekle
-- Mevcut klasör yapısını bozma
-- `main` branch'e doğrudan push atma
+* Make small and controlled changes
+* Do not add unnecessary files
+* Add tests along with code
+* Add comments if they improve educational value
+* Do not break the existing folder structure
+* Do not push directly to the `main` branch
 
-### Beklenen temel kontrol listesi
+### Basic checklist
 
-Kodunu push etmeden önce şunları kontrol et:
+Before pushing your code, check:
 
-1. Proje çalışıyor mu?
-2. İlgili testler geçiyor mu?
-3. Yeni eklediğin dosyalar doğru klasörde mi?
-4. Gerekliyse `__init__.py` güncellendi mi?
-5. Değişiklik açıklanabilir ve küçük parçalara ayrılmış mı?
+1. Does the project run?
+2. Do the relevant tests pass?
+3. Are new files in the correct directory?
+4. Is `__init__.py` updated if necessary?
+5. Are changes explainable and broken into small parts?
 
 ---
 
-## 9. Dosya değişikliklerini kontrol etme
+## 9. Checking file changes
 
-Durumu görmek için:
+To see the current status:
 
 ```powershell
 git status
 ```
 
-Yapılan değişiklikleri satır bazlı görmek için:
+To see line-level changes:
 
 ```powershell
 git diff
@@ -240,89 +241,87 @@ git diff
 
 ---
 
-## 10. Commit alma
+## 10. Committing changes
 
-Önce dosyaları stage et:
+First stage files:
 
 ```powershell
 git add .
 ```
 
-Daha kontrollü gitmek istersen belirli dosyaları ekle:
+For more controlled staging:
 
 ```powershell
 git add src/tokenizer_workshop/tokenizers/word_tokenizer.py
 git add tests/test_word_tokenizer.py
 ```
 
-Sonra commit al:
+Then commit:
 
 ```powershell
 git commit -m "Add word tokenizer and tests"
 ```
 
-### Commit mesajı önerileri
+### Commit message suggestions
 
-- `Add word tokenizer and tests`
-- `Add regex tokenizer implementation`
-- `Add byte BPE tokenizer draft`
-- `Improve tokenizer metrics tests`
-- `Update contribution guide`
+* `Add word tokenizer and tests`
+* `Add regex tokenizer implementation`
+* `Add byte BPE tokenizer draft`
+* `Improve tokenizer metrics tests`
+* `Update contribution guide`
 
-Commit mesajı kısa, net ve fiil ile başlamalıdır.
+Commit messages should be short, clear, and start with a verb.
 
 ---
 
-## 11. Kendi fork'una push etme
+## 11. Pushing to your fork
 
-İlk kez push ederken branch'i kendi fork'una gönder:
+When pushing for the first time:
 
 ```powershell
 git push -u origin feature/<your-work-name>
 ```
 
-Örnek:
+Example:
 
 ```powershell
 git push -u origin feature/word-tokenizer
 ```
 
-Sonraki push'larda daha kısa yazabilirsin:
+For subsequent pushes:
 
 ```powershell
 git push
 ```
 
-Buradaki önemli nokta şudur:
+Important point:
 
-- `origin` -> senin fork'un
-- push işlemi önce senin fork'una gider
-- ana repo'ya doğrudan push atılmaz
+* `origin` -> your fork
+* push goes to your fork first
+* no direct push to the main repository
 
 ---
 
-## 12. Pull Request açma
+## 12. Opening a Pull Request
 
-Push işleminden sonra GitHub'a git ve kendi fork'undaki ilgili branch için PR aç.
+After pushing, go to GitHub and open a PR for the relevant branch in your fork.
 
-PR yönü şu şekilde olmalıdır:
+PR direction should be:
 
-- **base repository:** ana repo (`Burakkylmz/tokenizer-workshop`)
-- **base branch:** `main`
-- **compare branch:** senin fork'undaki feature branch
+* **base repository:** main repo (`Burakkylmz/tokenizer-workshop`)
+* **base branch:** `main`
+* **compare branch:** your feature branch in your fork
 
-Yani PR, senin fork'undan ana repo'ya doğru açılır.
+### What to consider when opening a PR
 
-### PR açarken dikkat edilmesi gerekenler
+The PR description should answer:
 
-PR açıklaması şu 4 soruya cevap vermelidir:
+1. What was added or changed?
+2. Why was this change made?
+3. Which files were affected?
+4. Which tests were run?
 
-1. Ne eklendi veya değişti?
-2. Neden bu değişiklik yapıldı?
-3. Hangi dosyalar etkilendi?
-4. Hangi testler çalıştırıldı?
-
-### PR açıklaması için örnek şablon
+### Example PR template
 
 ```md
 ## Summary
@@ -342,25 +341,25 @@ This PR adds the first implementation of the tokenizer.
 - Follow-up improvements can be added separately
 ```
 
-### PR başlığı örnekleri
+### Example PR titles
 
-- `Add WordTokenizer implementation`
-- `Add RegexTokenizer with tests`
-- `Add ByteBPETokenizer baseline`
-- `Improve tokenizer evaluation metrics`
+* `Add WordTokenizer implementation`
+* `Add RegexTokenizer with tests`
+* `Add ByteBPETokenizer baseline`
+* `Improve tokenizer evaluation metrics`
 
 ---
 
-## 13. PR sonrası revizyon süreci
+## 13. Post-PR revision process
 
-PR açıldıktan sonra yorum gelebilir. Bu durumda:
+After opening a PR, comments may be received. In that case:
 
-1. İstenen değişikliği localde yap
-2. Testleri tekrar çalıştır
-3. Yeni commit al
-4. Aynı branch'e tekrar push et
+1. Make requested changes locally
+2. Run tests again
+3. Commit changes
+4. Push to the same branch
 
-Örnek:
+Example:
 
 ```powershell
 git add .
@@ -368,78 +367,76 @@ git commit -m "Address PR review comments"
 git push
 ```
 
-Aynı PR otomatik güncellenir. Yeni PR açman gerekmez.
+The same PR will be updated automatically.
 
 ---
 
-## 14. Contributors görünürlüğü hakkında kısa not
+## 14. Note on contributors visibility
 
-Bir katkının GitHub üzerinde ana repo'nun katkıları içinde görünmesi için en kritik nokta şudur:
+For a contribution to appear in the main repository’s contributions:
 
-- katkıların ana repo'nun `main` gibi default branch'ine merge edilmiş olması gerekir
+* it must be merged into the default branch (e.g., `main`)
 
-Sadece fork açmak veya sadece kendi fork'unda commit atmak yeterli değildir.
+Just forking or committing to your fork is not enough.
 
-Ayrıca commit author bilgisinin doğru görünmesi için local Git ayarlarında kullanılan `user.name` ve `user.email` değerleri de doğru olmalıdır.
-
-Kontrol için:
+Also, ensure correct Git configuration:
 
 ```powershell
 git config user.name
 git config user.email
 ```
 
-Gerekirse düzeltmek için:
+To update:
 
 ```powershell
 git config user.name "YourGitHubUsername"
 git config user.email "your-email@example.com"
 ```
 
-Bu bölümde görünürlük bazen anlık olmayabilir; merge sonrası GitHub arayüzünde kısa bir gecikme olabilir.
+There may be a slight delay in GitHub reflecting contributions.
 
 ---
 
-## 15. Sık kullanılan komutlar
+## 15. Frequently used commands
 
-### Projeyi çalıştır
+### Run the project
 
 ```powershell
 uv run tokenizer-workshop
 ```
 
-### Tüm testleri çalıştır
+### Run all tests
 
 ```powershell
 uv run pytest -v
 ```
 
-### Tek test dosyası çalıştır
+### Run a single test file
 
 ```powershell
 uv run pytest tests/test_simple_bpe_tokenizer.py -v
 ```
 
-### Yeni branch aç
+### Create a new branch
 
 ```powershell
 git checkout -b feature/<your-work-name>
 ```
 
-### Durumu kontrol et
+### Check status
 
 ```powershell
 git status
 ```
 
-### Commit al
+### Commit
 
 ```powershell
 git add .
 git commit -m "Your commit message"
 ```
 
-### Push et
+### Push
 
 ```powershell
 git push -u origin feature/<your-work-name>
@@ -447,36 +444,37 @@ git push -u origin feature/<your-work-name>
 
 ---
 
-## 16. Katkı verirken kaçınılması gereken hatalar
+## 16. Mistakes to avoid when contributing
 
-- `main` branch üzerinde çalışmak
-- Test çalıştırmadan push etmek
-- Çok büyük ve dağınık PR açmak
-- Tek PR içinde birden fazla bağımsız konu çözmek
-- Gereksiz refactor yapmak
-- İsimlendirme ve klasör yapısını bozmak
-- Çalışmayan kodu “taslak” diye main'e taşımaya çalışmak
-- Yalnızca fork'a push edip PR açmayı unutmak
-
----
-
-## 17. Beklenen minimum katkı kalitesi
-
-Bir katkının kabul edilebilir olması için minimum beklenti:
-
-- Kod localde çalışmalı
-- İlgili testler yazılmış olmalı
-- Mevcut yapıyla uyumlu olmalı
-- PR açıklaması net olmalı
-- Değişikliğin kapsamı anlaşılır olmalı
+* Working on the `main` branch
+* Pushing without running tests
+* Opening very large and messy PRs
+* Solving multiple unrelated topics in a single PR
+* Making unnecessary refactors
+* Breaking naming or folder structure
+* Trying to merge non-working “draft” code into main
+* Forgetting to open a PR after pushing to fork
 
 ---
 
-## 18. Son öneri
+## 17. Minimum expected contribution quality
 
-Bu projede amaç sadece kod yazmak değil, yazılan şeyi açıklayabilmek.
-Bu yüzden katkı verirken şu soruya net cevap verebilmelisin:
+For a contribution to be acceptable:
 
-**"Ben ne yaptım, neden yaptım ve nasıl doğruladım?"**
+* Code must run locally
+* Relevant tests must be written
+* Must be compatible with the existing structure
+* PR description must be clear
+* Scope of change must be understandable
 
-PR değerlendirmesinde en önemli nokta budur.
+---
+
+## 18. Final recommendation
+
+The goal of this project is not only to write code, but also to explain what is written.
+Therefore, when contributing, you should be able to clearly answer:
+
+**"What did I do, why did I do it, and how did I validate it?"**
+
+This is the most important point in PR evaluation.
+
