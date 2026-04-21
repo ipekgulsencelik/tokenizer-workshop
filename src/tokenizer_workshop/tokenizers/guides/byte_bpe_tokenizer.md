@@ -2,969 +2,463 @@
 
 ## 1. Purpose
 
-`ByteBPETokenizer`, bu projede **byte-level subword tokenization** fikrini öğretmek için yer alan tokenizer türüdür.
+`ByteBPETokenizer` is a tokenizer type included in this project to teach the idea of **byte-level subword tokenization**.
 
-Bu sınıfın temel amacı, öğrencinin şu soruya net cevap verebilmesini sağlamaktır:
+The main purpose of this class is to enable the learner to clearly answer the following question:
 
-> Herhangi bir metin (dil, emoji veya bilinmeyen karakterler dahil) kayıpsız şekilde temsil edilirken, aynı zamanda tekrar eden byte dizileri birleştirilerek daha verimli bir temsil elde edilebilir mi?
+> While representing any text (including language, emojis, or unknown characters) without loss, is it possible to obtain a more efficient representation by merging repeating byte sequences?
 
-`ByteBPETokenizer` bu sorunun cevabını doğrudan gösterir.  
-Burada metin önce UTF-8 byte dizisine indirgenir, ardından bu byte dizisi üzerinde BPE merge kuralları öğrenilir.
+`ByteBPETokenizer` directly demonstrates the answer to this question.
+Here, the text is first reduced to a UTF-8 byte sequence, and then BPE merge rules are learned on this byte sequence.
 
-Örnek fikir:
+Example idea:
 
 ```text
 "merhaba" -> UTF-8 bytes -> BPE merges -> token ids
-````
+```
 
-Bu yaklaşım, `ByteTokenizer` ve `SimpleBPETokenizer` sınıflarının güçlü yönlerini tek bir mimaride birleştirir.
-- `ByteTokenizer` gibi **tüm UTF-8 byte’larını kapsayan evrensel bir temsil** sağlanır
-- `SimpleBPETokenizer` gibi **tekrar eden pattern’ler öğrenilerek sıkıştırma yapılır**
+This approach combines the strengths of the `ByteTokenizer` and `SimpleBPETokenizer` classes into a single architecture.
 
-Bu sayede artık yalnızca metni parçalamak değil,
-**her türlü girdiyi kayıpsız temsil ederken aynı zamanda tekrar eden yapıları öğrenmek** söz konusudur.
+* Like `ByteTokenizer`, it provides a **universal representation covering all UTF-8 bytes**
+* Like `SimpleBPETokenizer`, it **learns repeating patterns and performs compression**
+
+In this way, it is no longer just about splitting text, but:
+
+**representing any kind of input without loss while simultaneously learning repeating structures**
 
 ---
 
 ## 2. Why This Tokenizer Exists
 
-Bu tokenizer projede çok kritik bir noktayı doldurur.
+This tokenizer fills a very critical point in the project.
 
-### a) Kapsayıcılık ile verimlilik aynı yerde buluşur
+### a) Inclusiveness and efficiency meet in the same place
 
-`ByteTokenizer` her türlü girdiyi (farklı diller, emoji, bilinmeyen karakterler) kayıpsız şekilde temsil edebilir; ancak ortaya çıkan token dizileri genellikle uzundur.
-`SimpleBPETokenizer` ise tekrar eden parçaları birleştirerek daha kısa ve verimli diziler üretir; ancak character-level başladığı için eğitim sırasında görülmemiş karakterler için sınırlıdır.
+`ByteTokenizer` can represent any input (different languages, emojis, unknown characters) without loss; however, the resulting token sequences are usually long.
+`SimpleBPETokenizer`, on the other hand, produces shorter and more efficient sequences by merging repeating parts; however, since it starts at the character level, it is limited for unseen characters during training.
 
-`ByteBPETokenizer` bu iki yaklaşımın güçlü yönlerini birleştirir:
+`ByteBPETokenizer` combines the strengths of these two approaches:
 
-- **Byte-level kapsayıcılık** → her türlü girdiyi encode edebilme
-- **BPE tabanlı sıkıştırma** → tekrar eden byte dizilerini öğrenerek daha kısa temsil üretme
+* **Byte-level coverage** → ability to encode any input
+* **BPE-based compression** → learning repeating byte sequences to produce shorter representations
 
-### b) Modern LLM tokenizer’larının temel mantığını gösterir
+### b) Demonstrates the core logic of modern LLM tokenizers
 
-Gerçek dünyada kullanılan birçok büyük tokenizer (özellikle GPT ailesi), sistemlerinin önemli bir kısmı bu mantıkla çalışır:
+Many large tokenizers used in the real world (especially in the GPT family) operate largely based on this logic:
 
-* byte-level başlangıç
-* BPE ile merge öğrenimi
+* byte-level initialization
+* merge learning with BPE
 
-`ByteBPETokenizer`, bu gerçek dünya yaklaşımının sadeleştirilmiş ama **kavramsal olarak doğru ve öğretici** bir versiyonudur.
+`ByteBPETokenizer` is a simplified but **conceptually correct and educational** version of this real-world approach.
 
-### c) Önceki tokenizer’ların doğal bir devamıdır
+### c) A natural continuation of previous tokenizers
 
-Proje boyunca öğrenci sırasıyla:
-- `CharTokenizer` → karakter seviyesinde parçalama
-- `ByteTokenizer` → evrensel byte temsili
-- `SimpleBPETokenizer` → tekrar eden yapıları öğrenme
+Throughout the project, the learner is introduced to:
 
-ile tanışır.
+* `CharTokenizer` → character-level splitting
+* `ByteTokenizer` → universal byte representation
+* `SimpleBPETokenizer` → learning repeating structures
 
-`ByteBPETokenizer` bu yolculuğun doğal sonucudur:
+`ByteBPETokenizer` is the natural result of this journey:
 
-> En kapsayıcı taban ile en güçlü sıkıştırma mantığını birleştiren yapı.
+> A structure that combines the most inclusive base with the most powerful compression logic.
 
 ---
 
 ## 3. What “BPE” Means in This Project
 
-BPE, bu sınıf içerisinde **Byte Pair Encoding** fikrinden ilham alan bir birleştirme (merge) yaklaşımı olarak ele alınır.
+BPE in this class is handled as a merge approach inspired by the idea of **Byte Pair Encoding**.
 
-Ancak `ByteBPETokenizer`, projedeki `SimpleBPETokenizer`’dan farklı olarak daha gerçekçi bir modele yaklaşır.
+However, unlike `SimpleBPETokenizer` in the project, `ByteBPETokenizer` moves closer to a more realistic model.
 
-Bu projedeki BPE kullanımı şu özelliklere sahiptir:
+The use of BPE in this project has the following characteristics:
 
-- **byte-level başlangıç kullanır** (karakter değil, UTF-8 byte’ları üzerinden çalışır)
-- **merge öğrenimi BPE mantığıyla yapılır** (en sık tekrar eden komşu byte çiftleri birleştirilir)
-- **deterministic merge sırası korunur** (encoding sırasında öğrenilen sıra birebir uygulanır)
-- **tüm 256 byte’ı kapsayan sabit bir base vocabulary içerir**
-- **unseen karakterleri encode edebilir** (fallback olarak base byte’lara ayrılır)
+* **uses a byte-level starting point** (operates on UTF-8 bytes instead of characters)
+* **merge learning is done with BPE logic** (the most frequent neighboring byte pairs are merged)
+* **deterministic merge order is preserved** (the learned order is applied exactly during encoding)
+* **contains a fixed base vocabulary covering all 256 bytes**
+* **can encode unseen characters** (falls back to base bytes)
 
-Bununla birlikte, bu implementasyon hâlâ bilinçli olarak sade tutulmuştur:
+However, this implementation is still intentionally simplified:
 
-- regex pre-tokenization içermez
-- özel token yönetimi (PAD, BOS, EOS vb.) içermez
-- unicode normalization uygulanmaz
-- production-level optimizasyonlar hedeflenmez
+* does not include regex pre-tokenization
+* does not include special token management (PAD, BOS, EOS, etc.)
+* does not apply unicode normalization
+* does not aim for production-level optimizations
 
-Bu nedenle `ByteBPETokenizer`:
+Therefore, `ByteBPETokenizer` is:
 
-> Production tokenizer’ların birebir kopyası değil,
-ancak onların kullandığı yaklaşımı **kavramsal olarak doğru şekilde yansıtan** bir öğretim aracıdır.
+> Not an exact copy of production tokenizers,
+> but a teaching tool that **conceptually reflects their approach correctly**.
 
-Bu bölümdeki BPE kullanımıyla hedeflenen, sadece karakterleri birleştirmek değil; tekrar eden yapıları öğrenerek daha verimli bir temsil oluşturan bir sıkıştırma mekanizmasıdır.
+The goal of BPE usage here is not only to merge characters, but to create a compression mechanism that learns repeating structures and produces a more efficient representation.
+
+---
 
 ## 4. Core Idea
 
-Bu tokenizer’ın çalışma mantığı şu adımlara dayanır:
+The working logic of this tokenizer is based on the following steps:
 
-1. Metni UTF-8 ile encode et
-2. Ortaya çıkan byte dizisini başlangıç token dizisi olarak al
-3. Her byte’ı tek karakterlik bir sembole map et (BPE’nin string tabanlı çalışabilmesi için)
-4. Ardışık token çiftlerini say
-5. En sık geçen çifti bul ve yeni bir token olarak birleştir
-6. Bu işlemi `num_merges` kadar tekrar et
-7. Öğrenilen merge kurallarını encode sırasında aynı sırayla uygula
-8. Decode sırasında token dizisini tekrar byte dizisine ve oradan metne çevir
+1. Encode the text using UTF-8
+2. Take the resulting byte sequence as the initial token sequence
+3. Map each byte to a single-character symbol (so BPE can operate on strings)
+4. Count consecutive token pairs
+5. Find the most frequent pair and merge it into a new token
+6. Repeat this process `num_merges` times
+7. Apply learned merge rules in the same order during encoding
+8. During decoding, convert the token sequence back to bytes and then to text
 
-Örnek:
+Example:
 
 ```text
 "abababa"
 ```
 
-İlk olarak metin byte’lara çevrilir (ASCII olduğu için değişmez):
+First, the text is converted into bytes (unchanged since ASCII):
 
 ```text
 [97, 98, 97, 98, 97, 98, 97]
 ```
 
-Bu byte’lar sembollere map edilir:
+These bytes are mapped to symbols:
 
 ```text
 ["a", "b", "a", "b", "a", "b", "a"]
 ```
 
-Ardışık çiftler:
+Consecutive pairs:
 
 ```text
 ("a", "b") -> 3
 ("b", "a") -> 3
 ```
 
-Tie-break kuralına göre ilk seçilen çift:
+According to tie-break rules, the first selected pair:
 
 ```text
 ("a", "b") -> "ab"
 ```
 
-Birleştirme sonrası token dizisi:
+After merging:
 
 ```text
 ["ab", "ab", "ab", "a"]
 ```
 
-Bu süreç, belirlenen `num_merges` kadar tekrar eder ve her adımda daha büyük ve daha anlamlı token’lar oluşur.
+This process repeats `num_merges` times, producing larger and more meaningful tokens at each step.
 
-Bu örnek öğrencinin şunu görmesini sağlar:
+This example shows the learner:
 
-> Byte-level BPE, sık tekrar eden byte dizilerini öğrenerek daha büyük ve daha verimli token’lara dönüştürür.
+> Byte-level BPE learns repeating byte sequences and transforms them into larger and more efficient tokens.
 
-Örnek:
+Example:
 
 ```text
 "abab"
 
 -> UTF-8: [97, 98, 97, 98]
--> pair sayımı: (97, 98) -> 2
+-> pair count: (97, 98) -> 2
 -> merge: (97, 98) -> 256
--> yeni dizi: [256, 256]
+-> new sequence: [256, 256]
 ```
 
-Burada çok önemli bir gözlem vardır:
+A critical observation here:
 
-> Merge sonucu oluşan yeni token’lar artık tek bir byte değildir.
-> Onlar, birden fazla byte’ı temsil eden yeni sembolik birimlerdir.
+> Tokens created after merging are no longer single bytes.
+> They are new symbolic units representing multiple bytes.
 
-Bu şu anlama gelir:
+This means:
 
-- Başlangıçta her token = 1 byte
-- Merge sonrası her token = bir byte dizisi
+* Initially each token = 1 byte
+* After merge each token = a byte sequence
 
-Bu mekanizma sayesinde:
+Thanks to this mechanism:
 
-- tekrar eden byte dizileri tek token altında toplanır
-- token sayısı azalır (compression)
-- model daha kısa ve anlamlı dizilerle çalışır
+* repeating byte sequences are grouped under one token
+* token count decreases (compression)
+* the model works with shorter and more meaningful sequences
 
-`SimpleBPETokenizer` ile aynı merge mantığı kullanılır, ancak:
+The same merge logic as `SimpleBPETokenizer` is used, but:
 
-başlangıç noktası **character değil, byte seviyesidir**
-bu sayede:
-- **hiç görülmemiş karakterler** (emoji, farklı diller, özel karakterler) bile güvenli şekilde encode edilebilir 
-- Eğitim sırasında görülmemiş input’lar bile güvenle işlenir
-- Merge kuralları yeterince öğrenilmemiş olsa bile sistem her zaman byte-level temsile fallback yapar; tokenizer hiçbir zaman “unknown token” hatası vermez
+the starting point is **byte-level, not character-level**
+
+therefore:
+
+* **unseen characters** (emoji, different languages, special characters) can be encoded safely
+* inputs not seen during training can still be processed
+* even if merge rules are insufficiently learned, the system always falls back to byte-level representation and never produces an “unknown token” error
 
 ---
 
 ## 5. Why Byte-Level Base Matters
 
-Bu tokenizer’ın temeli UTF-8 byte’larına dayanır ve bu tercih tamamen bilinçlidir.
+The foundation of this tokenizer is UTF-8 bytes, and this choice is intentional.
 
-Byte-level taban şu avantajları sağlar:
+A byte-level base provides the following advantages:
 
-* hiçbir karakter “unknown” olmaz
-* her UTF-8 metni kayıpsız şekilde temsil edilebilir
-* Türkçe, Arapça, CJK karakterleri, emoji ve diğer özel semboller sorunsuz tokenize edilir
-* Tokenizer davranışı, eğitim verisine daha az bağımlı hale gelir
+* no character is “unknown”
+* every UTF-8 text can be represented without loss
+* Turkish, Arabic, CJK characters, emojis, and other special symbols are tokenized seamlessly
+* tokenizer behavior becomes less dependent on training data
 
-`SimpleBPETokenizer` eğitim sırasında görmediği bir karakterle karşılaştığında sınırlı kalabilir.
-`ByteBPETokenizer` ise en kötü ihtimalle ilgili karakteri byte’larına ayrıştırarak encode etmeye devam eder.
+`SimpleBPETokenizer` may struggle when encountering unseen characters.
+`ByteBPETokenizer`, at worst, decomposes the character into bytes and continues encoding.
 
-Bu yüzden `ByteBPETokenizer` girdiye karşı kırılgan olmayan, her durumda çalışabilen ve gerçek dünya metinleri için daha sağlam (robust) bir tokenizer’dır.
+Therefore, `ByteBPETokenizer` is a more robust tokenizer that works reliably for real-world text.
 
 ---
 
 ## 6. Separation of Responsibilities
 
-Bu projede tokenizer mimarisinde uygulanan önemli ilke burada da korunur:
+The key architectural principle in this project is preserved here:
 
-* `BPETrainer` (veya `ByteBPETrainer`) öğrenme işini yapar
-* `ByteBPETokenizer` encode/decode davranışını yapar
+* `BPETrainer` (or `ByteBPETrainer`) handles learning
+* `ByteBPETokenizer` handles encode/decode behavior
 
-Bu ayrım çok değerlidir çünkü iki farklı sorumluluğu net biçimde ayırır.
+This separation is highly valuable because it clearly distinguishes two responsibilities.
 
 ### Trainer
 
-* byte dizisi üzerinde ardışık oken çiftlerinin frekanslarını hesaplar
-* en sık geçen çifti seçer
-* merge sırasını üretir
-* yeni token id’lerini `256`’dan başlatarak atar (base byte’lardan sonra)
-* öğrenme sürecini deterministik hale getirir
+* calculates frequencies of consecutive token pairs
+* selects the most frequent pair
+* produces merge order
+* assigns new token IDs starting from `256`
+* ensures deterministic learning
 
 ### Tokenizer
 
-* öğrenilen merge kurallarını saklar
-* base vocabulary (256 byte) + merged token’lardan oluşan vocab oluşturur
-* encode sırasında merge’leri öğrenilen sırayla uygular
-* decode sırasında token’ları tekrar byte dizisine dönüştürür ve UTF-8 ile metni geri oluşturur
+* stores learned merge rules
+* builds vocabulary from base bytes + merged tokens
+* applies merges during encoding in learned order
+* converts tokens back to byte sequences during decoding
 
-Bu tasarım öğrenciye şu temel prensibi öğretir:
+This teaches a key principle:
 
-> Öğrenme mantığı ile uygulama mantığı aynı sınıfta karışmamalıdır.
-
-Bu, sadece tokenizer için değil genel yazılım mimarisi açısından da çok değerli bir ayrımdır.
+> Learning logic and application logic should not be mixed in the same class.
 
 ---
 
 ## 7. Training Logic
 
-`train()` metodu bu tokenizer’ın merkezidir ve tüm öğrenme süreci burada gerçekleşir.
+The `train()` method is the core of this tokenizer.
 
-Training sırasında şu adımlar gerçekleşir:
+During training:
 
-### a) Metin byte dizisine çevrilir
+### a) Convert text into bytes
 
 ```python
 initial_tokens = list(text.encode("utf-8"))
 ```
 
-Bu adımda:
+Each token initially corresponds to a byte value in the range `0..255`.
 
-* metin UTF-8 byte’larına ayrılır.
-* Her token başlangıçta 0..255 aralığında bir byte değerine karşılık gelir.
+### b) Learn merge rules
 
-Bu, tokenizer’ın her zaman sabit bir başlangıç uzayına sahip olduğu anlamına gelir.
+* count consecutive token pairs
+* select the most frequent pair
+* create a new token ID
 
-### b) Merge kuralları öğrenilir
-
-Trainer:
-
-* ardışık token çiftlerini sayar
-* en sık geçen çifti seçer.
-* her seçilen çift için yeni bir token id oluşturulur.
-
-Her merge işlemi için yeni bir token id üretilir:
+New IDs:
 
 ```text
 256, 257, 258, ...
 ```
 
-Bu süreç `num_merges` kadar tekrar eder.
+### c) Store merge steps
 
-### c) Merge step’leri saklanır
+Each step is stored as a `MergeStep` object containing:
 
-Her merge adımı bir `MergeStep` nesnesi olarak tutulur ve şu bilgileri içerir:
+* merged pair
+* new token ID
+* frequency
 
-* hangi pair birleştirildi
-* hangi yeni token id’ye karşılık geldi
-* o anki frekansı neydi
+### d) Build vocabulary
 
-Bu sayede tokenizer:
+* base vocabulary: `0..255`
+* merged tokens: `256+`
 
-* deterministik hale gelir
-* encode sırasında aynı merge sırasını uygulayabilir
-* öğrenilen tokenizer davranışının inspect edilebilir olur.
-
-### d) Base vocabulary oluşturulur
-
-Vocabulary iki bölümden oluşur:
-
-* sabit base vocabulary: `0..255`
-* öğrenilen merged token’lar: `256, 257, ...`
-
-Yani final vocabulary boyutu:
+Final size:
 
 ```text
 256 + num_merges
 ```
 
-Bu çok önemli bir farktır:
-
-> `SimpleBPETokenizer`’da base vocabulary veri bağımlıdır.
-> `ByteBPETokenizer`’da base vocabulary her zaman sabittir.
-
-Bu tasarım sayesinde:
-
-* tokenizer her input’u encode edebilir
-* merge’ler sayesinde daha kısa temsil üretir
-* öğrenilen yapı şeffaf ve izlenebilir kalır
-
 ---
 
 ## 8. Why Merge Order Matters
 
-Tıpkı `SimpleBPETokenizer`’da olduğu gibi, bu tokenizer’da da en önemli kavramlardan biri **merge order**’dır.
+Merge order is critical.
 
-BPE merge’leri yalnızca bir “kurallar kümesi” değildir.
-Aynı pair’ler farklı sırayla uygulanırsa farklı tokenization çıktıları elde edilir.
+Applying the same merges in different orders produces different outputs.
 
-Bu yüzden merge’ler:
+Therefore:
 
-* öğrenildikleri sırayla saklanır
-* encode sırasında aynı sırayla uygulanır
-
-Öğrencinin burada kavraması gereken nokta şudur:
-
-> Byte BPE’de de sıra önemlidir, çünkü önceki merge’ler sonraki merge’lerin uygulanabilmesi için gerekli zemini hazırlar.
-
-Örneğin önce `(97, 98) -> 256` merge’i uygulanmadan, daha sonra `(256, 99)` gibi bir merge hiçbir zaman tetiklenemez.
-
-Byte BPE bağlamında, `SimpleBPETokenizer` ile aynıdır, ancak burada byte-level çalıştığımız için:
-
-* merge’ler byte dizileri üzerinde gerçekleşir
-* her adımda daha büyük ve daha anlamlı token’lar oluşur
-* merge sırası bozulursa sonuç tamamen değişir
+* merges are stored in order
+* encoding applies them in the same order
 
 ---
 
 ## 9. Determinism and Tie-Breaking
 
-Byte BPE training sırasında bazen iki farklı pair aynı frekansta olabilir.
+When two pairs have equal frequency:
 
-Örnek:
+* choose the most frequent
+* if equal, choose lexicographically smaller
 
-```text
-"abababa"
-```
+This ensures:
 
-Burada:
-
-* `("a", "b")`
-* `("b", "a")`
-
-aynı sayıda görülebilir.
-
-Bu durumda seçim belirsiz bırakılırsa:
-
-* her çalıştırmada farklı merge sırası oluşabilir
-* aynı input farklı encode sonucu üretebilir
-* testler ve sonuçlar kararsız hale gelir
-
-Bu yüzden projede deterministik bir tie-break kuralı kullanılır:
-
-* önce en yüksek frekansa sahip pair seçilir
-* şitlik durumunda byte pair’i lexicographically küçük olan seçilir
-
-Bu karar şu faydayı sağlar:
-
-* aynı input → aynı merge sırası
-* aynı merge sırası → aynı encode çıktısı
-* tekrar üretilebilir reproducible) sonuçlar
-
-Bu sayede:
-
-* öğrenciler aynı sonucu tekrar tekrar gözlemleyebilir
-* testler güvenilir hale gelir
-* tokenizer davranışı öngörülebilir olur
-
-> yalnızca “en sık pair’i seçmek” yeterli değildir; eşitlik durumunda nasıl seçim yapıldığı da model davranışını belirler.
+* same input → same output
+* reproducibility
 
 ---
 
 ## 10. Encode Logic
 
-`encode()` metodu şu akışla çalışır:
+Steps:
 
-1. Metni UTF-8 ile encode et
-2. Ortaya çıkan byte dizisini token dizisi olarak al
-3. Byte’ları sembollere map et (BPE işlemlerini uygulayabilmek için)
-4. Öğrenilen merge adımlarını sırayla uygula
-5. Son oluşan token’ları integer id’lere çevir ve döndür
+1. Encode text to UTF-8
+2. Map to symbols
+3. Apply merges
+4. Convert to token IDs
 
-Örnek mantık:
+Important:
 
-```text
-"abab"
--> UTF-8: [97, 98, 97, 98]
--> semboller: ["a", "b", "a", "b"]
--> merge (97,98)->256 uygulanır
--> ["ab", "ab"]
--> token ids: [256, 256]
-```
-
-Burada öğrencinin anlaması gereken en kritik şey şudur:
-
-> Encode sırasında yeni merge’ler öğrenilmez.
-> Sadece training sırasında öğrenilmiş olan merge’ler uygulanır.
-
-Yani training ile inference kesin biçimde ayrıdır.
-
-* Training → merge kurallarını öğrenir
-* Encoding → bu kuralları uygular
-
-Encode aşamasında önemli bir özellik daha vardır:
-
-> Girdi eğitim sırasında hiç görülmemiş karakterler içerse bile tokenizer çalışmaya devam eder.
-
-Çünkü:
-
-* metin UTF-8 byte’larına ayrılır
-* tüm byte’lar vocabulary’de zaten vardır (0..255)
-
-Bu sayede:
-
-* unknown token oluşmaz
-* tokenizer hiçbir zaman kırılmaz
-* her input güvenle encode edilir
-
-> Encode işlemi, öğrenme sürecinin bir tekrar değildir; öğrenilmiş kuralların deterministik biçimde uygulanmasıdır.
-
-Bu da `ByteBPETokenizer`’ın neden bu kadar sağlam olduğunu gösterir.
+> No new merges are learned during encoding.
+> Only learned rules are applied.
 
 ---
 
 ## 11. Decode Logic
 
-`decode()` metodu integer token id’lerini tekrar string parçalarına çevirir ve sonra bunları birleştirir.
+Steps:
 
-Bu süreç iki aşamalıdır:
+1. Convert token IDs to byte sequences
+2. Convert bytes to text
 
-### a) Token id’lerden byte dizisine geri dönüş
+Important:
 
-Her merged token, aslında belirli bir byte dizisine karşılık gelir.
-Bu nedenle tokenizer her token id için onun “byte açılımını” bilmek zorundadır.
-
-Yani her id için şu bilgi tutulur:
-
-```text
-id -> bytes(...)
-```
-
-Decode sırasında:
-
-```text
-[id_ab, id_ab, id_a]
-→ ["ab", "ab", "a"]
-→ byte’lar: [97, 98, 97, 98, 97]
-```
-
-Yani:
-
-* base token’lar → tek byte
-* merged token’lar → birden fazla byte
-
-### b) Byte dizisinden metne çevirme
-
-Elde edilen byte dizisi `utf-8` ile decode edilerek orijinal metin geri kurulur.
-
-Örnek:
-
-```text
-[256, 256]
--> bytes: [97, 98, 97, 98]
--> "abab"
-```
-
-> Decode işlemi, token’ların büyüklüğünden (granularity) bağımsızdır.
-
-Yani:
-
-* token tek karakter olabilir
-* bir merge sonucu oluşmuş olabilir
-* daha büyük bir byte dizisini temsil edebilir
-
-Ama sonuçta hepsi byte dizisine açılır ve tek bir metin olarak birleştirilir.
-
-Decode sırasında iki önemli kontrol yapılır:
-
-* token id’ler vocabulary içinde mi?
-* ortaya çıkan byte dizisi geçerli UTF-8 mi?
-
-Bu kontroller sayesinde şu kritik gerçek görünür hale gelir:
-
-> Token dizisi geçerli olsa bile, her zaman geçerli bir metin üretmeyebilir.
-
-Bu durum `ByteTokenizer`’da da vardır, ancak burada daha derindir:
-
-* token’lar artık tek byte değildir
-* birden fazla byte’ı temsil edebilir
-* yanlış kombinasyonlar geçersiz UTF-8 üretebilir
-
-> Decode işlemi, token’ları sadece birleştirmek değildir; 
-onları doğru byte dizisine açıp geçerli bir metin üretme sürecidir.
+> Decoding is not just concatenation; it reconstructs valid UTF-8.
 
 ---
 
 ## 12. Vocabulary Behavior
 
-`ByteBPETokenizer` için vocabulary iki ana parçadan oluşur:
+Two parts:
 
 ### Base vocabulary
 
-* sabit bir yapıya sahiptir
-* tüm UTF-8 byte’larını kapsar: `0..255`
-* veriye bağlı değildir
-* her durumda tam kapsama sağlar
+* fixed `0..255`
 
 ### Merged vocabulary
 
-* training sırasında öğrenilir
-* yeni token id’leri şu şekilde atanır: `256, 257, 258, ...` gibi id’ler alır
-* her merged token, bir byte dizisini temsil eder
-* sık tekrar eden pattern’leri daha kompakt şekilde ifade eder
-
-Yani toplam vocab boyutu:
-
-```text
-vocab_size = 256 + (öğrenilen merge sayısı)
-```
-
-Burada önemli olan yalnızca boyut değil, temsil gücüdür.
-
-Bu tokenizer şu önemli fikri öğretir:
-
-> Daha büyük bir vocabulary, daha kısa ve daha verimli token dizileri elde etmek için bilinçli bir trade-off olabilir.
-
-Bu davranış önceki tokenizer’lardan farklıdır:
-
-* `CharTokenizer`: vocabulary tamamen veri bağımlıdır
-* `ByteTokenizer`: vocabulary her zaman 256 sabit byte
-* `SimpleBPETokenizer`: veri bağımlı base + öğrenilmiş merge’ler
-* `ByteBPETokenizer`: sabit base + öğrenilmiş merge’ler
-
-Bu dört farklı yaklaşım, tokenizer tasarımında geniş bir spektrum olduğunu gösterir:
-
-* kapsayıcılık (coverage)
-* verimlilik (compression)
-* veri bağımlılığı (data dependence)
-
-Bu sayede öğrenci sadece “nasıl çalıştığını” değil,
-neden farklı tasarım kararları alındığını da anlayabilir.
+* learned
+* IDs `256+`
 
 ---
 
 ## 13. Compression Behavior
 
-`ByteBPETokenizer`’ın en önemli pratik avantajı kompresyondur.
-
-Örnek:
+Example:
 
 ```text
 "ababab"
 ```
 
-### ByteTokenizer ile:
-
-* 6 byte
-* 6 token
-
-### ByteBPETokenizer ile (birkaç merge sonrası):
-
-* `(97, 98)` birleşir
-* token sayısı yarıya iner
-
-Çok byte’lı karakterlerde bu avantaj daha da belirginleşir.
-Örneğin Türkçe `"ğ"` karakteri UTF-8’de birden fazla byte’tır.
-Eğer bu byte dizisi metinde sık geçiyorsa, BPE bu diziyi tek bir token’a dönüştürebilir.
-
-Yani:
-
-> `ByteBPETokenizer`, çok byte’lı karakterlerin uzun token dizilerine yol açması problemini doğal biçimde çözer.
-
-Bu, byte-level BPE’nin neden bu kadar güçlü olduğunu açıklayan en önemli noktadır.
+ByteTokenizer → 6 tokens
+ByteBPETokenizer → fewer tokens
 
 ---
 
 ## 14. Strengths
 
-`ByteBPETokenizer`’ın en önemli pratik avantajı, tekrar eden yapılarda token sayısını azaltabilmesidir.
-
-Örnek:
-
-```text
-"abababa"
-```
-
-`CharTokenizer` ile:
-
-* 7 karakter
-* 7 token
-
-`ByteTokenizer` ile:
-
-* 7 byte
-* 7 token
-
-`ByteBPETokenizer` ile (merge sonrası):
-
-* `(97, 98)` → `"ab"` olarak birleşir
-* token dizisi kısalır
-
-Örneğin:
-
-```text
-["a","b","a","b","a","b","a"]
-→ ["ab","ab","ab","a"]
-```
-
-### a) Çok kapsayıcıdır
-
-Her UTF-8 metni sorunsuz tokenize edebilir.
-
-### b) Unknown token problemi yoktur
-
-Her şey en kötü ihtimalle byte seviyesine düşer.
-
-### c) Tekrar eden yapıları kullanır
-
-BPE merge mantığı sayesinde token dizilerini kısaltabilir.
-
-### d) Multi-byte karakterlerde verimlidir
-
-Sık geçen byte dizilerini tek bir token haline getirir.
-
-### e) Çok byte’lı karakterler
-
-UTF-8’de bazı karakterler birden fazla byte’tan oluşur.
-
-Örnek:
-
-```text
-"ğ"
-→ UTF-8: [196, 159]
-```
-
-Normalde bu:
-
-* 2 byte
-* 2 token
-
-olarak temsil edilir.
-
-Ancak bu karakter metinde sık geçiyorsa:
-
-```text
-[196, 159] → tek token
-```
-şeklinde merge edilebilir.
-
-### f) Modern tokenizer mantığına en yakın sınıftır
-
-Gerçek dünya byte-level BPE sistemlerinin kavramsal olarak doğru bir prototipidir.
-
-### g) Deterministik ve test edilebilir
-
-Merge step’leri açık şekilde saklanır ve incelenebilir.
-
-> `ByteBPETokenizer`, çok byte’lı karakterlerin uzun token dizileri üretmesi problemini doğal olarak çözer.
-
-Bu davranış sayesinde:
-
-* tekrar eden pattern’ler daha az token ile temsil edilir
-* sequence length azalır
-* model daha verimli çalışır
-  
-Bu tokenizer şu önemli bakış açısını kazandırır:
-
-> Tokenization sadece “doğru bölmek” değil,
-aynı zamanda daha verimli temsil üretmek problemidir.
-
-> `ByteBPETokenizer`, hem evrensel kapsama (byte-level) hem de güçlü sıkıştırma (BPE) sağlayarak,
-gerçek dünya tokenizer tasarımına en yakın modeli sunar.
+* universal coverage
+* no unknown tokens
+* compression
+* efficient multi-byte handling
+* close to real-world tokenizers
+* deterministic
 
 ---
 
 ## 15. Strengths
 
-`ByteBPETokenizer’ın güçlü yönleri şunlardır:
+Key strengths:
 
-### a) Evrensel kapsama sağlar
-
-Byte-level başlangıç sayesinde:
-
-* her UTF-8 metni temsil edebilir
-* farklı diller, emoji ve özel karakterler sorunsuz encode edilir
-* hiçbir zaman “unknown token” hatası oluşmaz
-
-### b) Subword + byte yaklaşımını birleştirir
-
-* `SimpleBPETokenizer` gibi tekrar eden yapıları öğrenir
-* `ByteTokenizer` gibi tam kapsama sağlar
-
-Bu birleşim, hem esneklik hem verimlilik sunar.
-
-### c) Tekrar eden yapıları verimli şekilde sıkıştırır
-
-* sık geçen byte dizileri tek token altında toplanır
-* token sayısı azalır
-* daha kısa ve daha anlamlı temsiller oluşur
-
-### d) Merge order ve determinism kavramlarını net şekilde gösterir
-
-* merge sırasının neden önemli olduğunu görünür hale getirir
-* deterministik davranışın tokenizer çıktısını nasıl etkilediğini açıkça gösterir
-
-Bu, gerçek dünya tokenizer mantığını anlamak için kritik bir adımdır.
-
-### e) Inspect edilebilir ve test edilebilir
-
-* training süreci `MergeStep` yapıları üzerinden gözlemlenebilir
-* merge kararları şeffaftır
-* davranış kolayca test edilebilir
-
-### f) Gerçek dünya tokenizer’larına en yakın eğitim modeli
-
-* byte-level + BPE kombinasyonu
-* production sistemlerde kullanılan yaklaşıma çok yakındır
-* ancak karmaşıklık minimum seviyede tutulmuştur
-  
-### g) Eğitim açısından çok güçlüdür
-
-* hem kapsama hem sıkıştırma aynı anda gösterilir
-* öğrenciye yalnızca “nasıl çalışır?” değil
-“neden böyle tasarlanır?” sorusunun cevabını da verir
+* universal coverage
+* combines byte + BPE
+* efficient compression
+* deterministic behavior
+* inspectable
+* educational strength
 
 ---
 
 ## 16. Limitations
 
-Bu tokenizer’ın da bilinçli olarak kabul edilmiş sınırları vardır.
-
-Bu sınırlamalar eksiklik değil, tasarım kapsamı (scope) tercihidir.
-
-### a) Pre-tokenization yoktur
-
-* Regex tabanlı ön parçalama yapılmaz
-* Whitespace, punctuation, sayı ve kelime sınırları özel olarak ele alınmaz.
-* Gerçek dünya sistemleri genellikle bu katmanı içerir
-
-### b) Özel token yönetimi yoktur
-
-* `<bos>`, `<eos>`, `<pad>` gibi kontrol token’ları desteklenmez
-* Sequence-level kontrol mekanizmaları bu tokenizer’ın kapsamı dışındadır.
-
-### c) Save/load mekanizması yoktur
-
-* Tokenizer state’i (merge kuralları, vocab vb.) kalıcı olarak saklanmaz
-* Eğitim odaklı kullanım için tasarlanmıştır
-
-### d) Büyük ölçek için optimize edilmemiştir
-
-* Merge uygulaması basit ve açıklayıcıdır
-* Milyonlarca token üzerinde performans optimizasyonu yapılmamıştır
-* Amaç hız değil, anlaşılabilirliktir
-
-### e) İnsan açısından yorumlamak zor olabilir
-
-* Token id’lerin temsil ettiği byte dizileri her zaman anlamlı karakterler üretmeyebilir.
-* Özellikle merged token’lar, doğrudan okunabilir olmayabilir
-
-### f) Production özellikleri sınırlıdır
-
-* Unicode normalization yoktur
-* Advanced fallback / error handling mekanizmaları yoktur
-* Gerçek dünya tokenizer’larının sunduğu tüm özellikler hedeflenmemiştir
-
-> Bu sınırlamalar, tokenizer’ın eksik olduğu anlamına gelmez; aksine, karmaşıklığı azaltarak kavramsal netliği artırmak için bilinçli olarak yapılmış tasarım kararlarıdır.
-
-Amaç production tokenizer’ı değil, kavramsal netliktir.
+* no pre-tokenization
+* no special tokens
+* no save/load
+* not optimized
+* harder to interpret
+* limited production features
 
 ---
 
 ## 17. Comparison with Other Tokenizers
 
-### ByteBPETokenizer vs CharTokenizer
+### vs CharTokenizer
 
-* `CharTokenizer` karakter bazlıdır ve herhangi bir birleştirme yapmaz
-* `ByteBPETokenizer` byte bazlı ve merge öğrenir
+simpler vs more powerful
 
-Sonuç:
+### vs ByteTokenizer
 
-* `CharTokenizer` çok daha basit ve anlaşılırdır
-* `ByteBPETokenizer` hem daha sağlam (robust) hem de daha verimli temsil üretir
+fixed vs learned
 
-### ByteBPETokenizer vs ByteTokenizer
+### vs SimpleBPETokenizer
 
-* `ByteTokenizer` sabit 256 byte token’ı kullanır
-* `ByteBPETokenizer` 256 base’e ek olarak öğrenilmiş merge token’ları içerir
-
-Sonuç:
-
-* `ByteTokenizer` daha sade ve deterministiktir
-* `ByteBPETokenizer` tekrar eden yapıları kullanarak daha kısa token dizileri üretir
-
-### ByteBPETokenizer vs SimpleBPETokenizer
-
-* `SimpleBPETokenizer` character-level başlar ve base vocabulary veri bağımlıdır
-* `ByteBPETokenizer` byte-level başlar ve base vocabulary her zaman sabittir (`0..255`)
-
-Sonuç:
-
-* `SimpleBPETokenizer` BPE mantığını öğretmek için idealdir
-* `ByteBPETokenizer` hem öğretici hem de gerçek dünya kullanımına daha yakın ve daha sağlamdır
-
-### ByteBPETokenizer vs gerçek dünya byte-level BPE sistemleri
-
-Gerçek tokenizer sistemleri genellikle şu ek katmanları içerir:
-
-* regex-based pre-tokenization
-* özel token yönetimi (`<bos>`, `<eos>`, `<pad>` vb.)
-* serialization (save/load) mekanizmaları
-* performans optimizasyonları (paralel merge, hızlı lookup yapıları)
-  
-Sonuç:
-
-* Bu sınıf production sistemlerin tüm özelliklerini içermez
-* Ancak kullanılan yaklaşım aynıdır
-  
-> `ByteBPETokenizer`, diğer tokenizer türleri arasında **kapsayıcılık (byte-level) + verimlilik (BPE)** dengesini kuran yapıdır.
-
-Bu karşılaştırma, tokenizer tasarımında şu temel trade-off’ları görünür hale getirir:
-* basitlik vs. güç
-* kapsayıcılık vs. verimlilik
-* veri bağımlılığı vs. sabit temsil
+data-dependent vs fixed base
 
 ---
 
-## 18. Design Decisions in This Project
+## 18. Design Decisions
 
-Bu projede `ByteBPETokenizer` için alınan temel kararlar şunlardır:
-
-* UTF-8 byte-level başlangıç tercih edilir
-* base vocabulary her zaman sabit `0..255` olarak kabul edilir
-* merge öğrenme mantığı ayrı bir trainer sınıfında tutulur
-* merge sırası korunur ve encode sırasında aynı sırayla uygulanır
-* deterministik tie-break kuralı uygulanır
-* yeni token id’leri `256`’dan başlayarak sırayla atanır
-* decode sırasında hem token id geçerliliği hem UTF-8 byte bütünlüğü kontrol edilir
-* encode/decode davranışı açık, sade ve inspectable tutulur
-
-Bu kararların tamamı, **öğretici değer ile mimari temizlik arasında denge kurmak** için seçilmiştir.
-
-Bu yaklaşım sayesinde:
-
-* sistem deterministik ve öngörülebilir olur
-* davranış şeffaf ve analiz edilebilir kalır
-* öğrenci yalnızca “nasıl çalıştığını” değil,
-neden böyle tasarlandığını da anlayabilir
-
-> `ByteBPETokenizer`, karmaşıklığı kontrollü şekilde artırarak, hem doğru mimariyi hem de gerçek dünya yaklaşımını öğretilebilir bir formda sunar.
+* byte-level base
+* fixed vocab
+* deterministic merges
+* separation of trainer/tokenizer
 
 ---
 
 ## 19. Testing Perspective
 
-Bu tokenizer için testlerde doğrulanan temel davranışlar şunlardır:
+Tests validate:
 
-### Temel doğrulamalar
-
-* invalid `num_merges` durumunda hata verilmesi
-* boş text ile `train()` çağrıldığında hata oluşması
-* training öncesi `encode()`/`decode()` kullanımının hata vermesi
-  
-### Vocabulary davranışı
-
-* vocab boyutunun `256 + num_merges` olması
-* base token’ların her zaman `0..255` aralığında olması
-
-### Encode / Decode doğruluğu
-
-* `encode()` çıktısının integer id listesi olması
-* `decode()` sonrası orijinal metnin geri elde edilmesi (roundtrip)
-* ASCII metinlerde roundtrip’in doğru çalışması
-* Türkçe karakterler gibi çok byte’lı input’larda da roundtrip’in korunması
-  
-### Öğrenme davranışı
-
-* merge step’lerin gerçekten öğrenilmesi
-* aynı input için aynı merge step sırasının üretilmesi (determinism)
-* tekrar eden byte dizilerinde token sayısının azalabilmesi (compression)
-
-### Byte-level kapsayıcılık
-
-* eğitimde hiç görülmemiş karakterlerin bile encode/decode edilebilmesi
-* unknown token hatasının oluşmaması
-
-### Hata yönetimi
-
-* geçersiz byte içeren id dizilerinde hata verilmesi
-* geçersiz UTF-8 byte dizisi oluştuğunda decode sırasında hata fırlatılması
-
-Bu testler çok değerlidir çünkü bu sınıf artık sadece mapping yapan bir yapı değil, hem **byte-level kapsayıcılığı (byte-level)** hem **öğrenme davranışı (learning)** olan bir tokenizer’dır.
-
-Bu test yaklaşımı sayesinde:
-
-* tokenizer davranışı güvenilir hale gelir
-* deterministik ve tekrar üretilebilir sonuçlar elde edilir
-* hem algoritmik doğruluk hem de gerçek dünya dayanıklılığı doğrulanır
+* errors
+* vocab size
+* encode/decode correctness
+* determinism
+* coverage
 
 ---
 
 ## 20. When to Use
 
-`ByteBPETokenizer` şu durumlarda özellikle faydalıdır:
+Useful for:
 
-* modern LLM tokenizer mantığına giriş yapmak istediğinde
-* kapsayıcılık (byte-level) ile verimliliği (BPE) aynı anda göstermek istediğinde
-* multi-byte karakterlerin (Türkçe, emoji vb.) tokenization üzerindeki etkisini açıklamak istediğinde
-* “unknown token” problemini kökten çözen bir yaklaşım örneklemek istediğinde
-* character-level ve byte-level yaklaşımların sınırlarını karşılaştırmalı olarak göstermek istediğinde
-* tokenization’ın sadece bölme değil, aynı zamanda öğrenme ve sıkıştırma problemi olduğunu anlatmak istediğinde
+* learning modern tokenizer logic
+* showing compression + coverage
 
-Şu durumlarda ise yeterli değildir:
+Not sufficient for:
 
-* production-grade tokenizer parity gerektiğinde
-* regex tabanlı boundary kontrolü (kelime, whitespace, punctuation ayrımı) istendiğinde
-* özel token ve kontrol sembolü yönetimi (`<bos>`, `<eos>`, `<pad>`) gerektiğinde
-* büyük ölçekli eğitim pipeline’ları için yüksek performans ve optimizasyon gerektiğinde
-* serialization (save/load) ve model entegrasyonu beklendiğinde
-
-Bu durumlarda daha ileri sistemler gereklidir.
-
-> `ByteBPETokenizer`, gerçek dünya tokenizer mantığını anlamak ve öğretmek için güçlü bir araçtır; ancak production sistemlerin yerini almak için değil, onları anlaşılır hale getirmek için tasarlanmıştır.
-
-Bu tokenizer’ın rolü şudur:
-
-> Karmaşık production tokenizer sistemlerine geçmeden önce, onların temel mantığını doğru ve sade bir şekilde kavratmak.
+* production systems
+* advanced features
 
 ---
 
 ## 21. Final Takeaway
 
-`ByteBPETokenizer`, bu projede tokenization yolculuğunun doğal zirvesidir.
+`ByteBPETokenizer` is the culmination of the tokenizer journey.
 
-Önceki tokenizer’lar bu sınıfı anlamak için gerekli kavramsal zemini hazırlar:
+> A good tokenizer does not just split text;
+> it builds learned structures on top of a universal base.
 
-* `CharTokenizer` → tokenization’ın özü
-* `ByteTokenizer` → daha düşük seviyeli ve evrensel temsil
-* `SimpleBPETokenizer` → merge ile öğrenme fikri
-* `ByteBPETokenizer` → bütün bu fikirlerin birleşimi
-
-Bu sınıfın verdiği en önemli ders şudur:
-
-> İyi bir tokenizer, yalnızca metni bölmez;
-basit ve evrensel bir temsilin üzerine öğrenilmiş yapıları inşa eder.
-
-`SimpleBPETokenizer` ile öğrenilen kritik fikir:
-
-> Tekrar eden yapılar daha anlamlı ve daha verimli parçalara dönüştürülebilir.
-
-`ByteBPETokenizer` bu fikri bir adım ileri taşır:
-
-* Bu dönüşüm artık her türlü metin için geçerlidir
-* Sistem hem kapsayıcı hem de verimlidir
-* Öğrenme ve temsil birlikte çalışır
-
-> Modern tokenizer sistemlerinin gücü,
-basit bir temel (byte-level) ile öğrenilmiş yapıların (BPE) birleşiminden gelir.
-
-Bu fikir anlaşıldığında, modern byte-level BPE sistemlerinin neden bu kadar yaygın ve güçlü olduğu artık sezgisel değil, **yapısal** olarak kavranmış olur.
