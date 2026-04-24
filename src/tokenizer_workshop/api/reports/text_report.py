@@ -1,255 +1,567 @@
+from __future__ import annotations
+
 from typing import Any
 
 from .helpers import (
-    REPORT_WIDTH,
     append_section_title,
     extract_compare_payload,
     format_number,
+    format_reconstruction,
+    format_top_tokens,
+    get_metrics,
     hr,
+    latency_microseconds,
     safe_str,
     truncate_list,
     utc_now_iso,
     wide_hr,
-    get_metrics,
-    get_metric,
-    latency_microseconds,
-    format_top_tokens,
-    format_reconstruction,
 )
 
 
-def build_text_report(compare_result: dict[str, Any]) -> str:
-    text, total, results, pairwise = extract_compare_payload(compare_result)
+REPORT_TITLE_WIDTH = 120
 
-    lines: list[str] = []
-    append = lines.append
 
-    append(wide_hr("="))
-    append("TOKENIZER EVALUATION REPORT".center(120))
-    append(wide_hr("="))
-    append(f"Generated At (UTC): {utc_now_iso()}")
-    append("")
+def _safe_float(value: Any, fallback: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
 
+
+def _metric(item: dict[str, Any], key: str, fallback: Any = 0) -> Any:
+    metrics = get_metrics(item)
+    return metrics.get(key, item.get(key, fallback))
+
+
+def _best_by_metric(
+    results: list[dict[str, Any]],
+    metric_key: str,
+    *,
+    reverse: bool = True,
+) -> dict[str, Any] | None:
+    if not results:
+        return None
+
+    return sorted(
+        results,
+        key=lambda item: _safe_float(_metric(item, metric_key)),
+        reverse=reverse,
+    )[0]
+
+
+def _compression_gain_percent(item: dict[str, Any], source_text: str) -> float:
+    source_length = len(source_text)
+
+    if source_length == 0:
+        return 0.0
+
+    token_count = _safe_float(_metric(item, "token_count"))
+    return (1 - token_count / source_length) * 100
+
+
+def _similarity_level(overlap_ratio: Any) -> str:
+    ratio = _safe_float(overlap_ratio)
+
+    if ratio == 0:
+        return "Completely Different"
+
+    if ratio < 0.25:
+        return "Highly Different"
+
+    if ratio < 0.60:
+        return "Moderately Similar"
+
+    return "Highly Similar"
+
+
+def _pairwise_observation(overlap_ratio: Any) -> str:
+    level = _similarity_level(overlap_ratio)
+
+    observations = {
+        "Completely Different": (
+            "No shared tokens were found, indicating completely different tokenization strategies."
+        ),
+        "Highly Different": (
+            "Minimal overlap exists; tokenization strategies differ significantly."
+        ),
+        "Moderately Similar": (
+            "Moderate overlap suggests partial similarity in segmentation."
+        ),
+        "Highly Similar": (
+            "High overlap indicates similar tokenization behavior."
+        ),
+    }
+
+    return observations[level]
+
+
+def _append_header(lines: list[str], total: int) -> None:
+    lines.extend(
+        [
+            wide_hr("="),
+            "TOKENIZER EVALUATION REPORT".center(REPORT_TITLE_WIDTH),
+            wide_hr("="),
+            f"Generated At (UTC): {utc_now_iso()}",
+            f"Total Tokenizers   : {total}",
+            "",
+        ]
+    )
+
+
+def _append_source_text(lines: list[str], text: str) -> None:
     append_section_title(lines, "SOURCE TEXT")
-    append(text if text else "No source text provided.")
-    append("")
+    lines.append(text if text else "No source text provided.")
+    lines.append("")
 
-    append("OVERVIEW")
-    append(wide_hr("-"))
-    append("This report evaluates multiple tokenization strategies applied to the same input text.")
-    append("It analyzes segmentation granularity, token diversity, computational efficiency, and structural overlap.")
-    append("")
 
-    append("SUMMARY TABLE")
-    append(wide_hr("-"))
-    append(
-        "Tokenizer | Tokens | Unique | Uniq Ratio | Avg Len | Min | Max | "
-        "Chars/Token | Unknown | Latency (µs) | Eff. Score | Comp."
+def _append_overview(lines: list[str], total: int) -> None:
+    lines.extend(
+        [
+            "OVERVIEW",
+            wide_hr("-"),
+            (
+                f"This report evaluates {total} tokenizer(s) on the same input text. "
+                "It compares token count, vocabulary diversity, segmentation granularity, latency, "
+                "compression behavior, reconstruction quality, and pairwise token overlap."
+            ),
+            "",
+        ]
     )
-    append(
-        "----------+--------+--------+------------+---------+-----+-----+"
-        "-------------+---------+--------------+------------+------"
+
+
+def _append_executive_summary(
+    lines: list[str],
+    results: list[dict[str, Any]],
+) -> None:
+    lines.extend(["EXECUTIVE SUMMARY", wide_hr("-")])
+
+    if not results:
+        lines.extend(["No executive summary available.", ""])
+        return
+
+    best_overall = _best_by_metric(results, "efficiency_score", reverse=True)
+    fastest = _best_by_metric(results, "latency_seconds", reverse=False)
+    shortest = _best_by_metric(results, "token_count", reverse=False)
+    most_granular = _best_by_metric(results, "token_count", reverse=True)
+
+    if best_overall:
+        lines.append(f"• Best overall tokenizer    : {safe_str(best_overall.get('tokenizer_name'))}")
+
+    if fastest:
+        lines.append(f"• Fastest tokenizer         : {safe_str(fastest.get('tokenizer_name'))}")
+
+    if shortest:
+        lines.append(f"• Shortest sequence         : {safe_str(shortest.get('tokenizer_name'))}")
+
+    if most_granular:
+        lines.append(f"• Most granular tokenizer   : {safe_str(most_granular.get('tokenizer_name'))}")
+
+    lines.extend(
+        [
+            "",
+            (
+                "Tokenizer selection should depend on the target use case: speed, compression, "
+                "readability, interpretability, or robustness across diverse input types."
+            ),
+            "",
+        ]
     )
+
+
+def _append_summary_table(
+    lines: list[str],
+    results: list[dict[str, Any]],
+    source_text: str,
+) -> None:
+    lines.extend(
+        [
+            "SUMMARY TABLE",
+            wide_hr("-"),
+            (
+                "Tokenizer | Tokens | Unique | Uniq Ratio | Avg Len | Min | Max | "
+                "Chars/Token | Unknown | Latency µs | Eff. Score | Comp. | Gain %"
+            ),
+            (
+                "----------+--------+--------+------------+---------+-----+-----+"
+                "-------------+---------+------------+------------+-------+--------"
+            ),
+        ]
+    )
+
+    if not results:
+        lines.extend(["No summary data available.", ""])
+        return
 
     for item in results:
         metrics = get_metrics(item)
-        append(
+        gain = _compression_gain_percent(item, source_text)
+
+        lines.append(
             f"{safe_str(item.get('tokenizer_name')):<9} | "
-            f"{metrics.get('token_count', item.get('token_count', 0)):<6} | "
-            f"{metrics.get('unique_token_count', item.get('vocab_size', 0)):<6} | "
+            f"{_metric(item, 'token_count'):<6} | "
+            f"{_metric(item, 'unique_token_count', item.get('vocab_size', 0)):<6} | "
             f"{format_number(metrics.get('unique_ratio'), 2):<10} | "
             f"{format_number(metrics.get('average_token_length'), 2):<7} | "
             f"{metrics.get('min_token_length', '-'):<3} | "
             f"{metrics.get('max_token_length', '-'):<3} | "
             f"{format_number(metrics.get('avg_chars_per_token'), 2):<11} | "
             f"{format_number(metrics.get('unknown_rate'), 2):<7} | "
-            f"{latency_microseconds(metrics):<12} | "
+            f"{latency_microseconds(metrics):<10} | "
             f"{format_number(metrics.get('efficiency_score'), 2):<10} | "
-            f"{format_number(metrics.get('compression_ratio'), 2)}"
+            f"{format_number(metrics.get('compression_ratio'), 2):<5} | "
+            f"{format_number(gain, 2)}"
         )
-    append("")
 
-    append("KEY INSIGHTS")
-    append(wide_hr("-"))
+    lines.append("")
+
+
+def _append_key_insights(lines: list[str], results: list[dict[str, Any]]) -> None:
+    lines.extend(["KEY INSIGHTS", wide_hr("-")])
 
     if not results:
-        append("No insights available.")
-        append("")
-    else:
-        lowest_token = min(results, key=lambda item: item.get("token_count", 0))
-        highest_token = max(results, key=lambda item: item.get("token_count", 0))
-        highest_vocab = max(results, key=lambda item: item.get("vocab_size", 0))
-        best_efficiency = max(results, key=lambda item: get_metrics(item).get("efficiency_score", 0))
-        best_compression = max(results, key=lambda item: get_metrics(item).get("compression_ratio", 0))
-        fastest = min(results, key=lambda item: get_metrics(item).get("latency_seconds", float("inf")))
+        lines.extend(["No insights available.", ""])
+        return
 
-        append(f"• Lowest token count        : {safe_str(lowest_token.get('tokenizer_name'))} ({lowest_token.get('token_count', 0)})")
-        append(f"• Highest token count       : {safe_str(highest_token.get('tokenizer_name'))} ({highest_token.get('token_count', 0)})")
-        append(f"• Best efficiency score     : {safe_str(best_efficiency.get('tokenizer_name'))} ({format_number(get_metric(best_efficiency, 'efficiency_score'), 2)})")
-        append(f"• Highest unique token count: {safe_str(highest_vocab.get('tokenizer_name'))} ({highest_vocab.get('vocab_size', 0)})")
-        append(f"• Fastest tokenizer         : {safe_str(fastest.get('tokenizer_name'))} ({latency_microseconds(get_metrics(fastest))} µs)")
-        append(f"• Best compression ratio    : {safe_str(best_compression.get('tokenizer_name'))} ({format_number(get_metric(best_compression, 'compression_ratio'), 2)})")
-        append("")
+    lowest_token = _best_by_metric(results, "token_count", reverse=False)
+    highest_token = _best_by_metric(results, "token_count", reverse=True)
+    best_efficiency = _best_by_metric(results, "efficiency_score", reverse=True)
+    highest_unique = _best_by_metric(results, "unique_token_count", reverse=True)
+    fastest = _best_by_metric(results, "latency_seconds", reverse=False)
+    best_compression = _best_by_metric(results, "compression_ratio", reverse=True)
 
-    append("INTERPRETATION")
-    append(wide_hr("-"))
+    if lowest_token:
+        lines.append(
+            f"• Lowest token count        : {safe_str(lowest_token.get('tokenizer_name'))} "
+            f"({_metric(lowest_token, 'token_count')})"
+        )
+
+    if highest_token:
+        lines.append(
+            f"• Highest token count       : {safe_str(highest_token.get('tokenizer_name'))} "
+            f"({_metric(highest_token, 'token_count')})"
+        )
+
+    if best_efficiency:
+        lines.append(
+            f"• Best efficiency score     : {safe_str(best_efficiency.get('tokenizer_name'))} "
+            f"({format_number(_metric(best_efficiency, 'efficiency_score'), 2)})"
+        )
+
+    if highest_unique:
+        lines.append(
+            f"• Highest unique token count: {safe_str(highest_unique.get('tokenizer_name'))} "
+            f"({_metric(highest_unique, 'unique_token_count')})"
+        )
+
+    if fastest:
+        lines.append(
+            f"• Fastest tokenizer         : {safe_str(fastest.get('tokenizer_name'))} "
+            f"({latency_microseconds(get_metrics(fastest))} µs)"
+        )
+
+    if best_compression:
+        lines.append(
+            f"• Best compression ratio    : {safe_str(best_compression.get('tokenizer_name'))} "
+            f"({format_number(_metric(best_compression, 'compression_ratio'), 2)})"
+        )
+
+    lines.append("")
+
+
+def _append_interpretation(lines: list[str], results: list[dict[str, Any]]) -> None:
+    lines.extend(["INTERPRETATION", wide_hr("-")])
 
     if not results:
-        append("No interpretation available.")
-    else:
-        lowest_token = min(results, key=lambda item: item.get("token_count", 0))
-        highest_token = max(results, key=lambda item: item.get("token_count", 0))
-        highest_vocab = max(results, key=lambda item: item.get("vocab_size", 0))
-        best_efficiency = max(results, key=lambda item: get_metrics(item).get("efficiency_score", 0))
-        fastest = min(results, key=lambda item: get_metrics(item).get("latency_seconds", float("inf")))
+        lines.extend(["No interpretation available.", ""])
+        return
 
-        append(
-            f"The '{safe_str(lowest_token.get('tokenizer_name'))}' tokenizer produces the most compact segmentation "
-            f"with {lowest_token.get('token_count', 0)} tokens."
+    lowest_token = _best_by_metric(results, "token_count", reverse=False)
+    highest_token = _best_by_metric(results, "token_count", reverse=True)
+    best_efficiency = _best_by_metric(results, "efficiency_score", reverse=True)
+    fastest = _best_by_metric(results, "latency_seconds", reverse=False)
+
+    if lowest_token:
+        lines.append(
+            f"The '{safe_str(lowest_token.get('tokenizer_name'))}' tokenizer produces the most compact "
+            f"segmentation with {_metric(lowest_token, 'token_count')} tokens."
         )
-        append(
-            f"The '{safe_str(highest_token.get('tokenizer_name'))}' tokenizer produces the most granular segmentation "
-            f"with {highest_token.get('token_count', 0)} tokens."
+
+    if highest_token:
+        lines.append(
+            f"The '{safe_str(highest_token.get('tokenizer_name'))}' tokenizer produces the most granular "
+            f"segmentation with {_metric(highest_token, 'token_count')} tokens."
         )
-        append(
-            f"The '{safe_str(best_efficiency.get('tokenizer_name'))}' tokenizer achieves the best efficiency score "
-            f"({format_number(get_metric(best_efficiency, 'efficiency_score'), 2)}), indicating stronger compression per token."
+
+    if best_efficiency:
+        lines.append(
+            f"The '{safe_str(best_efficiency.get('tokenizer_name'))}' tokenizer achieves the strongest "
+            f"efficiency score ({format_number(_metric(best_efficiency, 'efficiency_score'), 2)}), "
+            "which indicates better compression behavior per token."
         )
-        append(
+
+    if fastest:
+        lines.append(
             f"The fastest tokenizer is '{safe_str(fastest.get('tokenizer_name'))}' "
             f"with {latency_microseconds(get_metrics(fastest))} µs latency."
         )
-        append(
-            "Overall, tokenizer choice directly affects input length, processing cost, semantic granularity, "
-            "and downstream model efficiency."
-        )
-    append("")
 
-    append("TOKENIZER DETAILS")
-    append(wide_hr("-"))
-    append("")
+    lines.extend(
+        [
+            (
+                "Overall, tokenizer choice directly affects sequence length, processing cost, semantic granularity, "
+                "compression behavior, and downstream model efficiency."
+            ),
+            "",
+        ]
+    )
+
+
+def _append_recommendation(lines: list[str], results: list[dict[str, Any]]) -> None:
+    lines.extend(["RECOMMENDATION", wide_hr("-")])
 
     if not results:
-        append("No tokenizer details available.")
-    else:
-        for index, item in enumerate(results, start=1):
-            tokenizer_name = safe_str(item.get("tokenizer_name"))
-            token_count = item.get("token_count", 0)
-            vocab_size = item.get("vocab_size", 0)
-            tokens = item.get("tokens", [])
-            metrics = item.get("metrics")
+        lines.extend(["No recommendation available.", ""])
+        return
 
-            append(f"[{index}] {tokenizer_name}")
-            append(f"Token Count          : {token_count}")
-            append(f"Vocab Size           : {vocab_size}")
-            append("Tokens:")
-            append(f"  {truncate_list(tokens)}")
+    best_efficiency = _best_by_metric(results, "efficiency_score", reverse=True)
+    fastest = _best_by_metric(results, "latency_seconds", reverse=False)
+    lowest_token = _best_by_metric(results, "token_count", reverse=False)
 
-            if isinstance(metrics, dict):
-                append(f"Unique Token Count   : {metrics.get('unique_token_count', '-')}")
-                append(f"Unique Ratio         : {format_number(metrics.get('unique_ratio'), 2)}")
-                append(f"Average Token Length : {format_number(metrics.get('average_token_length'), 2)}")
-                append(f"Min Token Length     : {metrics.get('min_token_length', '-')}")
-                append(f"Max Token Length     : {metrics.get('max_token_length', '-')}")
-                append(f"Avg Chars / Token    : {format_number(metrics.get('avg_chars_per_token'), 2)}")
-                append(f"Unknown Count        : {metrics.get('unknown_count', '-')}")
-                append(f"Unknown Rate         : {format_number(metrics.get('unknown_rate'), 2)}")
+    lines.extend(["### When to use each tokenizer", ""])
 
-                latency = metrics.get("latency_seconds")
-                append(
-                    f"Latency              : {latency:.6f}s"
-                    if isinstance(latency, (int, float))
-                    else "Latency              : -"
-                )
+    if best_efficiency:
+        lines.append(
+            f"- **{safe_str(best_efficiency.get('tokenizer_name'))}** → best when compression and token efficiency matter."
+        )
 
-                append(
-                    f"Latency / Token      : {format_number(metrics.get('latency_per_token'), 6)}"
-                )
-                append(
-                    f"Efficiency Score     : {format_number(metrics.get('efficiency_score'), 2)}"
-                )
-                append(
-                    f"Compression Ratio    : {format_number(metrics.get('compression_ratio'), 2)}"
-                )
+    if fastest:
+        lines.append(
+            f"- **{safe_str(fastest.get('tokenizer_name'))}** → best when low-latency tokenization matters."
+        )
 
-                top_tokens = format_top_tokens(metrics.get("top_tokens"))
-                if top_tokens:
-                    append("Top Tokens:")
-                    lines.extend(top_tokens)
-                    append("")
+    if lowest_token:
+        lines.append(
+            f"- **{safe_str(lowest_token.get('tokenizer_name'))}** → best when minimizing total token count matters."
+        )
 
-                reconstruction = format_reconstruction(metrics)
-                if reconstruction:
-                    append("Reconstruction:")
-                    lines.extend(reconstruction)
-                    append("")
+    for item in results:
+        name = safe_str(item.get("tokenizer_name")).lower()
 
-                token_length_distribution = metrics.get("token_length_distribution")
-                if isinstance(token_length_distribution, dict):
-                    append("Token Length Distribution:")
-                    for length, count in sorted(token_length_distribution.items()):
-                        append(f"  Length {length}: {count} tokens")
-                    append("")
-            append(hr("-"))
+        if name == "word":
+            lines.append("• word      : best when compression and readability matter")
 
-    append("OVERALL RANKING")
-    append(wide_hr("-"))
+        elif name == "byte":
+            lines.append("• byte      : best when ultra-fast tokenization is required")
 
-    ranked = sorted(
+        elif name == "char":
+            lines.append("• char      : best for debugging and maximum granularity")
+
+        elif name == "byte_bpe":
+            lines.append("• byte_bpe  : best for handling complex or unseen text")
+
+        elif name == "bpe":
+            lines.append("• bpe       : balanced option between compression and flexibility")
+
+    lines.extend(
+        [
+            "",
+            "Trade-offs:",
+            "• Character-level tokenization provides high granularity but usually increases sequence length.",
+            "• Word-level tokenization is compact but language-dependent.",
+            "• Subword/BPE tokenization balances flexibility and compression.",
+            "• Byte-level tokenization ensures full coverage of any input.",
+            "",
+        ]
+    )
+
+
+def _append_tokenizer_details(
+    lines: list[str],
+    results: list[dict[str, Any]],
+    source_text: str,
+) -> None:
+    lines.extend(["TOKENIZER DETAILS", wide_hr("-"), ""])
+
+    if not results:
+        lines.extend(["No tokenizer details available.", ""])
+        return
+
+    for index, item in enumerate(results, start=1):
+        tokenizer_name = safe_str(item.get("tokenizer_name"))
+        metrics = get_metrics(item)
+        tokens = item.get("tokens", [])
+
+        lines.extend(
+            [
+                f"[{index}] {tokenizer_name}",
+                f"Token Count          : {_metric(item, 'token_count')}",
+                f"Vocab Size           : {_metric(item, 'unique_token_count', item.get('vocab_size', 0))}",
+                "Token Preview:",
+                f"  {truncate_list(tokens)}",
+                f"Unique Token Count   : {_metric(item, 'unique_token_count', '-')}",
+                f"Unique Ratio         : {format_number(metrics.get('unique_ratio'), 2)}",
+                f"Average Token Length : {format_number(metrics.get('average_token_length'), 2)}",
+                f"Min Token Length     : {metrics.get('min_token_length', '-')}",
+                f"Max Token Length     : {metrics.get('max_token_length', '-')}",
+                f"Avg Chars / Token    : {format_number(metrics.get('avg_chars_per_token'), 2)}",
+                f"Unknown Count        : {metrics.get('unknown_count', '-')}",
+                f"Unknown Rate         : {format_number(metrics.get('unknown_rate'), 2)}",
+                (
+                    f"Latency              : {format_number(metrics.get('latency_seconds'), 6)}s "
+                    f"({latency_microseconds(metrics)} µs)"
+                ),
+                f"Latency / Token      : {format_number(metrics.get('latency_per_token'), 6)}",
+                f"Efficiency Score     : {format_number(metrics.get('efficiency_score'), 2)}",
+                f"Compression Ratio    : {format_number(metrics.get('compression_ratio'), 2)}",
+                "",
+                "Top Tokens:",
+            ]
+        )
+
+        top_tokens = format_top_tokens(metrics.get("top_tokens"))
+
+        if top_tokens:
+            lines.extend(top_tokens)
+        else:
+            lines.append("  No top token data available.")
+
+        lines.extend(["", "Token Length Distribution:"])
+
+        distribution = metrics.get("token_length_distribution")
+
+        if isinstance(distribution, dict) and distribution:
+            for length, count in sorted(
+                distribution.items(),
+                key=lambda pair: _safe_float(pair[0]),
+            ):
+                lines.append(f"  Length {length}: {count} tokens")
+        else:
+            lines.append("  No token length distribution available.")
+
+        lines.extend(["", "Reconstruction:"])
+
+        reconstruction = format_reconstruction(metrics, original_text=source_text)
+
+        if reconstruction:
+            lines.extend(reconstruction)
+        else:
+            lines.append("  No reconstruction details available.")
+
+        lines.extend(["", hr("-")])
+
+
+def _append_ranking(lines: list[str], results: list[dict[str, Any]]) -> None:
+    lines.extend(["OVERALL RANKING", wide_hr("-")])
+
+    if not results:
+        lines.extend(["No ranking available.", ""])
+        return
+
+    ranking = sorted(
         results,
         key=lambda item: (
-            get_metrics(item).get("efficiency_score", 0),
-            -get_metrics(item).get("latency_seconds", float("inf")),
+            _safe_float(_metric(item, "efficiency_score")),
+            -_safe_float(_metric(item, "latency_seconds")),
         ),
         reverse=True,
     )
 
-    if not ranked:
-        append("No ranking available.")
-    else:
-        append("Ranking is based on efficiency score and latency.")
-        append("")
-        for index, item in enumerate(ranked, start=1):
-            metrics = get_metrics(item)
-            append(
-                f"{index}. {safe_str(item.get('tokenizer_name'))} "
-                f"(eff={format_number(metrics.get('efficiency_score'), 2)}, "
-                f"latency={latency_microseconds(metrics)} µs)"
-            )
+    lines.extend(
+        [
+            "Ranking is based primarily on efficiency score, with latency used as a secondary tie-breaker.",
+            "",
+        ]
+    )
 
-    append("")
+    for index, item in enumerate(ranking, start=1):
+        metrics = get_metrics(item)
 
-    if pairwise:
-        append_section_title(lines, "PAIRWISE COMPARISONS")
+        lines.append(
+            f"{index}. {safe_str(item.get('tokenizer_name'))} "
+            f"(eff={format_number(metrics.get('efficiency_score'), 2)}, "
+            f"latency={latency_microseconds(metrics)} µs)"
+        )
 
-        for item in pairwise:
-            append(f"{item.get('left_name')} ↔ {item.get('right_name')}")
-            append(f"Overlap Ratio       : {format_number(item.get('overlap_ratio'), 2)}")
-            append("Observation:")
+    lines.append("")
 
-            ratio = item.get("overlap_ratio")
 
-            if isinstance(ratio, (int, float)):
-                if ratio == 0:
-                    append("  No shared tokens were found, indicating completely different tokenization strategies.")
-                elif ratio < 0.25:
-                    append("  Minimal overlap exists; tokenization strategies differ significantly.")
-                elif ratio < 0.6:
-                    append("  Moderate overlap suggests partial similarity in segmentation.")
-                else:
-                    append("  High overlap indicates similar tokenization behavior.")
-            else:
-                append("  No observation available.")
+def _append_pairwise_comparisons(
+    lines: list[str],
+    pairwise: list[dict[str, Any]],
+) -> None:
+    lines.extend(["PAIRWISE COMPARISONS", wide_hr("-")])
 
-            append("")
-            append(f"Common Tokens       : {truncate_list(item.get('common_tokens', []))}")
-            append(f"Only Left           : {truncate_list(item.get('unique_to_left', []))}")
-            append(f"Only Right          : {truncate_list(item.get('unique_to_right', []))}")
-            append(hr("-"))
+    if not pairwise:
+        lines.extend(["No pairwise comparison data available.", ""])
+        return
 
-        append("")
+    for item in pairwise:
+        left_name = safe_str(item.get("left_name"))
+        right_name = safe_str(item.get("right_name"))
+        ratio = item.get("overlap_ratio")
 
-    append("END OF REPORT".center(120))
-    append(wide_hr("="))
+        lines.extend(
+            [
+                f"{left_name} ↔ {right_name}",
+                f"Overlap Ratio             : {format_number(ratio, 2)}",
+                f"Semantic Difference Level : {_similarity_level(ratio)}",
+                "Observation:",
+                f"  {_pairwise_observation(ratio)}",
+                "",
+                f"Common Tokens             : {truncate_list(item.get('common_tokens', []))}",
+                f"Only In {left_name:<16}: {truncate_list(item.get('unique_to_left', []))}",
+                f"Only In {right_name:<16}: {truncate_list(item.get('unique_to_right', []))}",
+                hr("-"),
+            ]
+        )
+
+    lines.append("")
+
+
+def build_text_report(compare_result: dict[str, Any]) -> str:
+    """
+    Build a production-ready plain-text tokenizer evaluation report.
+
+    The report includes:
+    - source text,
+    - executive summary,
+    - summary table,
+    - key insights,
+    - interpretation,
+    - recommendation,
+    - tokenizer-level details,
+    - ranking,
+    - pairwise comparisons.
+
+    Args:
+        compare_result:
+            Raw comparison result produced by the tokenizer evaluation pipeline.
+
+    Returns:
+        Plain-text report as a string.
+    """
+
+    text, total, results, pairwise = extract_compare_payload(compare_result)
+
+    lines: list[str] = []
+
+    _append_header(lines, total)
+    _append_source_text(lines, text)
+    _append_overview(lines, total)
+    _append_executive_summary(lines, results)
+    _append_summary_table(lines, results, text)
+    _append_key_insights(lines, results)
+    _append_interpretation(lines, results)
+    _append_recommendation(lines, results)
+    _append_tokenizer_details(lines, results, text)
+    _append_ranking(lines, results)
+    _append_pairwise_comparisons(lines, pairwise)
+
+    lines.extend(
+        [
+            "END OF REPORT".center(REPORT_TITLE_WIDTH),
+            wide_hr("="),
+        ]
+    )
 
     return "\n".join(lines)
