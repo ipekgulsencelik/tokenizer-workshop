@@ -4,15 +4,15 @@
     <!-- -------------------------------------------------- -->
     <!-- Basic Metadata -->
     <!-- -------------------------------------------------- -->
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tokenizer Workshop Dashboard</title>
 
     <!--
         CSS dosyası FastAPI üzerinden servis edilir.
-        Bu nedenle relative path değil absolute path kullanıyoruz.
+        Bu nedenle relative path yerine absolute path kullanılır.
     -->
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
     <div class="app-shell">
@@ -23,21 +23,27 @@
             <div class="hero__content">
                 <div class="hero__left">
                     <p class="hero__eyebrow">Tokenizer Workshop</p>
-                    <h1 class="hero__title">Tokenizer Comparison Dashboard</h1>
+                    <h1 class="hero__title">Tokenizer Analysis Dashboard</h1>
                     <p class="hero__subtitle">
-                        Aynı metni bir veya birden fazla tokenizer ile çalıştır,
-                        sonuçları karşılaştırmalı incele ve tokenizer davranışlarını görsel olarak analiz et.
+                        Aynı metni farklı tokenizer'larla çalıştır, temel karşılaştırma yap,
+                        gelişmiş metrikleri incele ve indirilebilir rapor üret.
                     </p>
                 </div>
 
                 <div class="hero__right">
                     <div class="hero-stat">
                         <span class="hero-stat__label">Mod</span>
-                        <strong class="hero-stat__value">Compare</strong>
+                        <strong id="heroModeValue" class="hero-stat__value">Compare</strong>
                     </div>
+
                     <div class="hero-stat">
-                        <span class="hero-stat__label">UI</span>
-                        <strong class="hero-stat__value">Pure HTML/CSS/JS</strong>
+                        <span class="hero-stat__label">Arayüz</span>
+                        <strong class="hero-stat__value">HTML / CSS / JS</strong>
+                    </div>
+
+                    <div class="hero-stat">
+                        <span class="hero-stat__label">API</span>
+                        <strong class="hero-stat__value">FastAPI</strong>
                     </div>
                 </div>
             </div>
@@ -52,9 +58,10 @@
             <!-- -------------------------------------------------- -->
             <section class="panel panel--input">
                 <div class="panel__header">
-                    <h2>Girdi ve Seçim</h2>
+                    <h2>Girdi ve Çalıştırma Ayarları</h2>
                     <p>
-                        Karşılaştırmak istediğin metni gir. İstersen tek tokenizer, istersen birden fazla tokenizer seç.
+                        Analiz etmek istediğin metni gir, çalışma modunu seç ve
+                        ilgili tokenizer'ları işaretleyerek işlemi başlat.
                     </p>
                 </div>
 
@@ -62,8 +69,40 @@
                     <label for="textInput">Metin</label>
                     <textarea
                         id="textInput"
-                        placeholder="Buraya tokenizer davranışlarını karşılaştırmak istediğin metni yaz..."
+                        placeholder="Buraya tokenizer davranışlarını analiz etmek istediğin metni yaz..."
                     ></textarea>
+                </div>
+
+                <div class="form-group">
+                    <div class="section-heading">
+                        <label for="modeSelect">Çalışma Modu</label>
+                    </div>
+
+                    <div class="toolbar-row">
+                        <div class="mini-toolbar">
+                            <label for="modeSelect" class="mini-toolbar__label">Mod</label>
+                            <select id="modeSelect" class="mini-select">
+                                <option value="compare">Compare</option>
+                                <option value="evaluate">Evaluate (Advanced)</option>
+                            </select>
+                        </div>
+
+                        <div class="mini-toolbar">
+                            <label for="sortModeSelect" class="mini-toolbar__label">Sıralama</label>
+                            <select id="sortModeSelect" class="mini-select">
+                                <option value="default">Varsayılan</option>
+                                <option value="token_asc">En Az Token</option>
+                                <option value="token_desc">En Çok Token</option>
+                                <option value="vocab_desc">En Yüksek Vocab</option>
+                                <option value="name_asc">Ada Göre</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <p class="helper-text" id="modeDescription">
+                        Compare modu temel karşılaştırma çıktısı üretir. Evaluate modu ise
+                        detaylı metrikler ve pairwise comparison verileri döndürür.
+                    </p>
                 </div>
 
                 <div class="form-group">
@@ -81,18 +120,9 @@
                                 Seçimi Temizle
                             </button>
                         </div>
-
-                        <div class="mini-toolbar">
-                            <label for="sortModeSelect" class="mini-toolbar__label">Sıralama</label>
-                            <select id="sortModeSelect" class="mini-select">
-                                <option value="default">Varsayılan</option>
-                                <option value="token_asc">En Az Token</option>
-                                <option value="token_desc">En Çok Token</option>
-                                <option value="vocab_desc">En Yüksek Vocab</option>
-                                <option value="name_asc">Ada Göre</option>
-                            </select>
-                        </div>
                     </div>
+
+                    <br />
 
                     <div id="tokenizerCheckboxList" class="checkbox-list">
                         <p>Yükleniyor...</p>
@@ -100,7 +130,7 @@
                 </div>
 
                 <div class="button-group">
-                    <button id="analyzeButton" type="button">Karşılaştır</button>
+                    <button id="analyzeButton" type="button">Analizi Başlat</button>
                     <button id="clearButton" type="button" class="button-secondary">Temizle</button>
                 </div>
 
@@ -114,12 +144,16 @@
             <!-- -------------------------------------------------- -->
             <section class="panel panel--output">
                 <div class="panel__header">
-                    <h2>Karşılaştırma Sonuçları</h2>
+                    <h2>Analiz Sonuçları</h2>
                     <p>
-                        Seçilen tokenizer sonuçları burada kartlar halinde gösterilir.
+                        Seçilen moda göre tokenizer çıktıları, highlights, metrikler
+                        ve pairwise comparison sonuçları burada gösterilir.
                     </p>
                 </div>
 
+                <!-- -------------------------------------------------- -->
+                <!-- Summary Cards -->
+                <!-- -------------------------------------------------- -->
                 <div class="compare-summary" id="compareSummary">
                     <div class="summary-card">
                         <span class="summary-card__label">Seçili Tokenizer</span>
@@ -135,12 +169,23 @@
                         <span class="summary-card__label">Metin Uzunluğu</span>
                         <strong id="summaryTextLength">0 karakter</strong>
                     </div>
+
+                    <div class="summary-card">
+                        <span class="summary-card__label">Aktif Mod</span>
+                        <strong id="summaryMode">Compare</strong>
+                    </div>
                 </div>
 
+                <!-- -------------------------------------------------- -->
+                <!-- Insight Box -->
+                <!-- -------------------------------------------------- -->
                 <div class="insight-box" id="insightBox">
                     Henüz analiz içgörüsü yok.
                 </div>
 
+                <!-- -------------------------------------------------- -->
+                <!-- Results Toolbar -->
+                <!-- -------------------------------------------------- -->
                 <div class="results-toolbar">
                     <button id="copyResultsButton" type="button" class="button-secondary">
                         Sonuçları Kopyala
@@ -151,7 +196,10 @@
                     </button>
 
                     <div class="mini-toolbar">
-                        <label for="reportFormatSelect" class="mini-toolbar__label">Rapor Formatı</label>
+                        <label for="reportFormatSelect" class="mini-toolbar__label">
+                            Rapor Formatı
+                        </label>
+
                         <select id="reportFormatSelect" class="mini-select">
                             <option value="txt">TXT</option>
                             <option value="md">Markdown</option>
@@ -161,30 +209,55 @@
                     <button id="downloadReportButton" type="button" class="button-secondary">
                         Rapor İndir
                     </button>
+
+                    <button id="download-pdf-btn" type="button" class="button-secondary">
+                        PDF İndir
+                    </button>
                 </div>
 
+                <p class="helper-text" id="reportHint">
+                    Rapor çıktısı compare verisi üzerinden üretilir. Evaluate modu kullanıldığında
+                    ek metrikler arayüzde ayrıca gösterilir.
+                </p>
+
+                <!-- -------------------------------------------------- -->
+                <!-- Results Container -->
+                <!-- -------------------------------------------------- -->
                 <div id="resultsContainer" class="results-container">
-                    <p class="empty-state">Henüz bir karşılaştırma sonucu yok.</p>
+                    <p class="empty-state">Henüz bir analiz sonucu yok.</p>
                 </div>
 
-                <div class="detail-section">
+                <!-- -------------------------------------------------- -->
+                <!-- Highlights -->
+                <!-- -------------------------------------------------- -->
+                <div class="detail-section" id="highlightsSection">
                     <h3 class="detail-section__title">Highlights</h3>
                     <div id="highlightsContainer" class="detail-section__body">
                         <p class="empty-state">Henüz highlight verisi yok.</p>
                     </div>
                 </div>
 
-                <div class="detail-section">
+                <!-- -------------------------------------------------- -->
+                <!-- Metrics -->
+                <!-- -------------------------------------------------- -->
+                <div class="detail-section" id="metricsSection">
                     <h3 class="detail-section__title">Detaylı Metrikler</h3>
                     <div id="metricsTableContainer" class="detail-section__body">
-                        <p class="empty-state">Henüz metrik verisi yok.</p>
+                        <p class="empty-state">
+                            Detaylı metrikler yalnızca evaluate modunda görüntülenir.
+                        </p>
                     </div>
                 </div>
 
-                <div class="detail-section">
+                <!-- -------------------------------------------------- -->
+                <!-- Pairwise Comparisons -->
+                <!-- -------------------------------------------------- -->
+                <div class="detail-section" id="pairwiseSection">
                     <h3 class="detail-section__title">Pairwise Comparisons</h3>
                     <div id="pairwiseContainer" class="detail-section__body">
-                        <p class="empty-state">Henüz pairwise comparison verisi yok.</p>
+                        <p class="empty-state">
+                            Pairwise comparison verisi yalnızca evaluate modunda görüntülenir.
+                        </p>
                     </div>
                 </div>
             </section>
