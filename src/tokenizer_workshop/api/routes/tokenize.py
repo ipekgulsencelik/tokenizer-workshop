@@ -336,12 +336,10 @@ def generate_pdf_report_endpoint(request: ReportRequest) -> FileResponse:
             "pairwise_comparisons": analysis_result.get("pairwise_comparisons", []),
         }
 
-        markdown_report = build_markdown_report(report_source)
-
         temp_dir = tempfile.gettempdir()
         pdf_path = Path(temp_dir) / "tokenizer_report.pdf"
 
-        build_pdf_report(markdown_report, pdf_path)
+        build_pdf_report(report_source, pdf_path)
 
         return FileResponse(
             path=pdf_path,

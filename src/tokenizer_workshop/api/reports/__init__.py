@@ -26,4 +26,6 @@ __all__ = [
     "safe_str",
     "truncate_list",
     "utc_now_iso",
+    "normalize_text",
+    "is_reconstruction_match",
 ]
